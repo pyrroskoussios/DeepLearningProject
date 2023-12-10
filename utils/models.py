@@ -164,18 +164,15 @@ class ModelLoader:
     def load_models(self):
         experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name)
 
-        parent_one = self._load_individual_model(os.path.join(experiment_path, "parents", "parent_1.checkpoint"))
-        parent_two = self._load_individual_model(os.path.join(experiment_path, "parents", "parent_2.checkpoint"))
-        fused_naive = self._load_individual_model(os.path.join(experiment_path, "fused", "fused_naive.checkpoint"))
-        fused_geometric = self._load_individual_model(os.path.join(experiment_path, "fused", "fused_geometric.checkpoint"))
+        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_1.checkpoint")), "parent_one")
+        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_2.checkpoint")), "parent_two")
+        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_naive.checkpoint")), "fused_naive")
+        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_geometric.checkpoint")), "fused_geometric")
 
         return parent_one, parent_two, fused_naive, fused_geometric
 
     def _load_individual_model(self, path):
-        if self.device == "cuda":
-            state = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
-        else:
-            state = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)),)
+        state = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
         
         num_classes = 10 if self.dataset_name == "CIFAR10" else 100
         use_bias = "NOBIAS" not in self.model_type
