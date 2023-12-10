@@ -32,6 +32,7 @@ class Config:
     def _check_validity(self):
         experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name)
         
+        assert self.device in ["cpu", "cuda", "mps"], "Device must be 'cpu', 'cuda' or 'mps'"
         assert os.path.exists(experiment_path), "Experiment folder does not exist"
         assert len(os.listdir(os.path.join(experiment_path, "parents"))), "Parents folder does not contain any models"
         assert len(os.listdir(os.path.join(experiment_path, "fused"))), "Fused folder does not contain any models"
