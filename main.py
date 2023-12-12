@@ -1,4 +1,5 @@
 from collections import defaultdict
+from matplotlib import pyplot as plt
 
 from config.arguments import Config
 from utils.models import ModelLoader
@@ -19,7 +20,7 @@ def main(config):
     for model, name in models:
         results[name]["input_space"] = input_space_metrics.calculate_all(model)
     for model, name in models:
-        results[name]["parameter_space"] = parameter_space_metrics.calculate_all(model)
+        results[name]["parameter_space"] = parameter_space_metrics.calculate_all(model, test_set)
 
     return results
 
