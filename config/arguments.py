@@ -46,4 +46,4 @@ class Config:
         assert self.dataset_name in ["CIFAR10", "CIFAR100"], "Invalid dataset name, should be 'CIFAR10' or 'CIFAR100'"
         assert self.model_type in ["VGG11", "VGG11_NOBIAS", "VGG11_NOBIAS_NOBN", "RESNET18", "RESNET18_NOBIAS", "RESNET18_NOBIAS_NOBN"], "Invalid model type, should be 'VGG11' or 'RESNET18', with _NOBIAS and/or _NOBN in that order"
         assert self.seeds and 2*self.seeds <= len(os.listdir(os.path.join(experiment_path, "fused"))) and 2*self.seeds <= len(os.listdir(os.path.join(experiment_path, "parents"))), "You do not have enough differently seeded models"
-        assert self.hessian_batch_size >= 1 and self.hessian_batch_size <= 10000, "Hessian Batch Size must be between 1 and 10000"
+        assert self.batch_size >= 1 and self.batch_size <= 10000, "Hessian Batch Size must be between 1 and 10000"

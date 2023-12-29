@@ -14,7 +14,7 @@ class CorrelationSpaceMetrics:
 	def __init__(self, config):
 		
 		self.device = config.device
-		self.mode = config.correlation_metric
+		self.mode = config.accuracy_metric
 		self.seeds = config.seeds
 		self.batch_size = config.batch_size
 		
