@@ -1,25 +1,30 @@
 from typing import Callable, Dict, Tuple
-
-import numpy as np
 import pyhessian
 import torch
 import torchvision.models as models
 from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
+import gc
+import numpy as np
+
 
 
 class ParameterSpaceMetrics:
     def __init__(self, config):
         self.device = config.device
-        self.hessian_batch_size = config.hessian_batch_size
+        self.hessian_batch_size = config.batch_size
 
     def calculate_all(self, model, train_set, test_set):
+        for param in model.parameters():
+            param.requires_grad = True
         model.eval()
         parameter_space_results = dict()
         #parameter_space_results["hessian_eigenvalue_spectrum_density"] = self.hessian_eigenvalue_spectrum_density(model, test_set, self.hessian_batch_size)
+        
         parameter_space_results["hessian_top_eigenvalue"] = self.hessian_top_eigenvalue(model, test_set, self.hessian_batch_size)
+        print("done one")
         parameter_space_results["hessian_trace"] = self.hessian_trace(model, test_set, self.hessian_batch_size)
-
+        print("done two")
         model = model.to(self.device)
         # FIXME: theta_0 should be the initial weights used during training.
         theta_0 = models.resnet18(pretrained=False).state_dict()
@@ -28,6 +33,7 @@ class ParameterSpaceMetrics:
         dataset = train_set
         # TODO: MAYBE CREATE A LIST WITH ALL THE ACCURACIES THAT APPEAR ON THE PAPER, AND CHOOSE THE CORRECT VALUE DEPENDING ON THE MODEL EVALUATED
         model_accuracy = 0.9
+        """
         sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig = self.sharpness_measures(model, model.state_dict(), theta_0, loss_function, dataset, model_accuracy)
         
         parameter_space_results["sharpness_flatness"] = sharpness_flatness
@@ -36,6 +42,7 @@ class ParameterSpaceMetrics:
         parameter_space_results["sharpness_mag_flat"] = sharpness_mag_flat
         # parameter_space_results["sharpness_mag_init"] = sharpness_mag_init
         parameter_space_results["sharpness_mag_orig"] = sharpness_mag_orig
+        """
 
         return parameter_space_results
 
@@ -43,12 +50,16 @@ class ParameterSpaceMetrics:
         hessian_module = self._create_hessian_module(model, test_set, batch_size)
         top_eigenvalue = hessian_module.eigenvalues(top_n=1)[0][0]
         model.zero_grad()
+        del hessian_module
+        gc.collect()
         return top_eigenvalue
 
     def hessian_trace(self, model, test_set, batch_size):
         hessian_module = self._create_hessian_module(model, test_set, batch_size)
         trace = np.mean(hessian_module.trace())
         model.zero_grad()
+        del hessian_module
+        gc.collect()
         return trace
     
     def hessian_eigenvalue_spectrum_density(self, model, test_set, batch_size):
@@ -58,7 +69,7 @@ class ParameterSpaceMetrics:
         fig, ax = plt.subplots()
         ax.semilogy(grids, density + 1.0e-7)
         ax.set_ylabel('Density (Log Scale)', fontsize=14, labelpad=10)
-        ax.set_xlabel('Eigenvlaue', fontsize=14, labelpad=10)
+        ax.set_xlabel('Eigenvalue', fontsize=14, labelpad=10)
         ax.axis([np.min(eigenvalues) - 1, np.max(eigenvalues) + 1, None, None])
         return fig
 

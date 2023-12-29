@@ -9,8 +9,9 @@ class Config:
         self.experiment_name = cli_args.experiment_name
         self.model_type = cli_args.model_type
         self.dataset_name = cli_args.dataset_name
-
-        self.hessian_batch_size = cli_args.hessian_batch_size if cli_args.hessian_batch_size else 100
+        self.seeds = cli_args.seeds
+        self.batch_size = cli_args.batch_size
+        self.accuracy_metric = cli_args.accuracy_metric
 
         self._check_validity()
 
@@ -20,8 +21,9 @@ class Config:
         parser.add_argument("--experiment_name", required=True, type=str)
         parser.add_argument("--model_type", required=True, type=str)
         parser.add_argument("--dataset_name", required=True, type=str)
-
-        parser.add_argument("--hessian_batch_size", type=int)
+        parser.add_argument("--seeds", required=True, type=int)
+        parser.add_argument("--batch_size", type=int, default=100)
+        parser.add_argument("--accuracy_metric", type=str, default="accuracy")
 
         cli_args = parser.parse_args()
 
@@ -43,4 +45,5 @@ class Config:
         assert len(os.listdir(os.path.join(experiment_path, "fused"))), "Fused folder does not contain any models"
         assert self.dataset_name in ["CIFAR10", "CIFAR100"], "Invalid dataset name, should be 'CIFAR10' or 'CIFAR100'"
         assert self.model_type in ["VGG11", "VGG11_NOBIAS", "VGG11_NOBIAS_NOBN", "RESNET18", "RESNET18_NOBIAS", "RESNET18_NOBIAS_NOBN"], "Invalid model type, should be 'VGG11' or 'RESNET18', with _NOBIAS and/or _NOBN in that order"
+        assert self.seeds and 2*self.seeds <= len(os.listdir(os.path.join(experiment_path, "fused"))) and 2*self.seeds <= len(os.listdir(os.path.join(experiment_path, "parents"))), "You do not have enough differently seeded models"
         assert self.hessian_batch_size >= 1 and self.hessian_batch_size <= 10000, "Hessian Batch Size must be between 1 and 10000"

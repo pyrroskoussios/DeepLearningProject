@@ -2,6 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pathlib import Path
 
 class VGG(nn.Module):
     def __init__(self, vgg_name, num_classes, batch_norm=True, bias=True, relu_inplace=True):
@@ -161,13 +162,13 @@ class ModelLoader:
         self.model_type = config.model_type
         self.dataset_name = config.dataset_name
 
-    def load_models(self):
+    def load_models(self, prefix = None):
         experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name)
 
-        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_1.checkpoint")), "parent_one")
-        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_2.checkpoint")), "parent_two")
-        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_naive.checkpoint")), "fused_naive")
-        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_geometric.checkpoint")), "fused_geometric")
+        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parents", f"parent_1.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "parent_one" if prefix is None else f"parent_one_{prefix}")
+        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parents", f"parent_2.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "parent_two" if prefix is None else f"parent_two_{prefix}")
+        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "fused", f"fused_naive.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "fused_naive" if prefix is None else f"fused_naive_{prefix}")
+        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "fused", f"fused_geometric.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "fused_geometric" if prefix is None else f"fused_geometric_{prefix}")
 
         return parent_one, parent_two, fused_naive, fused_geometric
 
@@ -192,17 +193,6 @@ class ModelLoader:
             exit()
 
         return model
-
-
-
-
-
-
-
-
-
-
-
 
 
 
