@@ -38,11 +38,11 @@ class ParameterSpaceMetrics:
             for param in model.parameters():
                 param.grad = None
 
-            dataset = train_set  # FIXME: in the paper, they say to use the training dataset: is that correct tho?
+            dataset = test_set  # FIXME: in the paper, they say to use the training dataset: is that correct tho? B: imo we use test lol
             loss_function = torch.nn.CrossEntropyLoss()
 
-            # model_accuracy = self._get_accuracy(name, model, DataLoader(train_set, batch_size=64, shuffle=False))
-            model_accuracy = self._get_loss(name, model, DataLoader(train_set, batch_size=self.hessian_batch_size, shuffle=False), loss_function)
+            model_accuracy = self._get_accuracy(name, model, DataLoader(test_set, batch_size=self.hessian_batch_size, shuffle=False))
+            model_accuracy = self._get_loss(name, model, DataLoader(test_set, batch_size=self.hessian_batch_size, shuffle=False), loss_function)
             
             
             sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig = self.sharpness_measures(model, theta_0, loss_function, dataset, model_accuracy)
@@ -128,17 +128,18 @@ class ParameterSpaceMetrics:
         """
         model.eval()
 
-        seed = name.rsplit('_', 1)[-1]
-        path = os.path.join(os.getcwd(), "experiments", self.experiment_name,  str(self.experiment_name + f"_seed{seed}"), "accuracies")
-        filename = os.path.join(path, f"{name}_accuracy.pt")
 
+        sett = "training" if len(loader.dataset) == 50000 else "validation"
+        seed = name.rsplit('_', 1)[-1]
+        path = os.path.join(os.getcwd(), "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
+        filename = os.path.join(path, f"{name}_{sett}_accuracy.pt")
+       
         # Check if the accuracy has already been computed and saved
         if os.path.exists(filename):
             return torch.load(filename)
         
         correct = 0
         total = 0
-
         with torch.no_grad():
             for inputs, labels in loader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
@@ -151,12 +152,12 @@ class ParameterSpaceMetrics:
         
         avg_accuracy = correct / total
         
-        # Save the computed loss
-        """
+        # Save the computed accuracy
         if not os.path.exists(path):
             os.makedirs(path)
         torch.save(avg_accuracy, filename)
-        """
+        
+        print(f"---found {sett} accuracy")
         return avg_accuracy
 
     def _estimate_accuracy(self, model: torch.nn.Module,
@@ -191,9 +192,10 @@ class ParameterSpaceMetrics:
         """
         model.eval()
         
+        sett = "training" if len(loader.dataset) == 50000 else "validation"
         seed = name.rsplit('_', 1)[-1]
-        path = os.path.join(os.getcwd(), "experiments", self.experiment_name,  str(self.experiment_name + f"_seed{seed}"), "losses")
-        filename = os.path.join(path, f"{name}_loss.pt")
+        path = os.path.join(os.getcwd(), "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
+        filename = os.path.join(path, f"{name}_{sett}_loss.pt")
 
         # Check if the loss has already been computed and saved
         if os.path.exists(filename):
@@ -219,6 +221,7 @@ class ParameterSpaceMetrics:
             os.makedirs(path)
         torch.save(avg_loss, filename)
         
+        print(f"---found {sett} loss")
         return avg_loss
 
     def _estimate_loss(self, model: torch.nn.Module,

@@ -31,14 +31,9 @@ def main(config):
         for model, name in models:
             results[name]["input_space"] = input_space_metrics.calculate_all(model)
         for model, name in models:
-            results[name]["parameter_space"] = parameter_space_metrics.calculate_all(
-                name, 
-                model, 
-                initial_weights[name], 
-                train_set, 
-                test_set)
+            results[name]["parameter_space"] = parameter_space_metrics.calculate_all(name, model, initial_weights[name], train_set, test_set)
         for model, name in models:
-            results[name]["prediction_space"] = prediction_space_metrics.calculate_all(model, train_set, test_set)
+            results[name]["prediction_space"] = prediction_space_metrics.calculate_all(name, model, train_set, test_set)
     results = correlation_space_metrics.calculate_all(results)
     return results
 
