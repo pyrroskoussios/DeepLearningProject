@@ -10,6 +10,8 @@ class PredictionSpaceMetrics:
 		self.measure = config.pred_space
 
 	def calculate_all(self, model, train_set, test_set):
+		model.to(self.device)
+
 		prediction_space_results = dict()
 
 		if self.measure:
@@ -21,17 +23,17 @@ class PredictionSpaceMetrics:
 				test_loader = DataLoader(test_set, batch_size=self.batch_size, shuffle=False)
 				train_acc = self.run_epoch(model, train_loader)
 				test_acc = self.run_epoch(model, test_loader)
+				# generalisation gap reciprocal (so correlation has same sign as with accuracy)
 				prediction_space_results["generalisation_gap"] = 1 / abs(train_acc - test_acc)
 		return prediction_space_results
 
 	def run_epoch(self, model, loader):
-		model.to(self.device)
 		with torch.no_grad():
 			model.eval()
 			correct = 0
 			total = 0
-			for i, batch in enumerate(loader):
-				x, ygt = batch
+			for i, (x, ygt) in enumerate(loader):
+				x, ygt = x.to(self.device), ygt.to(self.device)
 				ypr = model(x)
 				predicted = torch.argmax(ypr, 1)
 				total += ygt.size(0)
