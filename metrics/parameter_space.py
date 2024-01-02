@@ -374,7 +374,6 @@ class ParameterSpaceMetrics:
                 theta_square_dist += ((param - param_init)**2).sum().item()
 
             sharpness_init = theta_square_dist * np.log(2 * n_params / delta) / (sigma**2) + np.log(m/delta) + 10
-            sharpness_init = 1
 
             # 3rd Measure: "sharpness-orig"
             theta_square_norm = sum(p.pow(2.0).sum() for p in model.parameters()).item()
@@ -400,8 +399,7 @@ class ParameterSpaceMetrics:
                 denominator = epsilon**2 + (sigma_mag * (param - param_init))**2
                 d_KL += (torch.log(numerator/denominator)).sum().item()
 
-            # sharpness_mag_init = d_KL/2 + np.log(m/delta) + 10
-            sharpness_mag_init = 1
+            sharpness_mag_init = d_KL/2 + np.log(m/delta) + 10
 
 
             # 6th Measure: "sharpness-mag-orig"
@@ -534,7 +532,6 @@ class ParameterSpaceMetrics:
             d_KL += (torch.log(numerator/denominator)).sum().item()
 
         flatness_mag_init = d_KL/2 + np.log(m/delta) + 10
-        flatness_mag_init = 1
 
 
         # 6th Measure: "flatness-mag-orig"
