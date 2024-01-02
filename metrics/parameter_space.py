@@ -52,7 +52,7 @@ class ParameterSpaceMetrics:
         model.zero_grad()
         del hessian_module
         gc.collect()
-        print("---found Hessian maximum eigenvalue---")
+        print("---found Hessian maximum eigenvalue")
         return top_eigenvalue
 
     def hessian_trace(self, model, test_set, batch_size):
@@ -61,7 +61,7 @@ class ParameterSpaceMetrics:
         model.zero_grad()
         del hessian_module
         gc.collect()
-        print("---found Hessian trace---")
+        print("---found Hessian trace")
         return trace
     
     def hessian_eigenvalue_spectrum_density(self, model, test_set, batch_size):
@@ -369,5 +369,5 @@ class ParameterSpaceMetrics:
                 tmp += (torch.log(numerator/denominator)).sum().item()
 
             sharpness_mag_orig = tmp/4 + np.log(m/delta) + 10
-        print("---found sharpness metrics---")
+        print("---found sharpness metrics")
         return sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig

@@ -163,18 +163,19 @@ class ModelLoader:
         self.dataset_name = config.dataset_name
 
     def load_models(self, prefix = None):
-        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name)
+        
+        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name, str(self.experiment_name + "_seed" + str(prefix)))
 
-        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parents", f"parent_1.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "parent_one" if prefix is None else f"parent_one_{prefix}")
-        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parents", f"parent_2.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "parent_two" if prefix is None else f"parent_two_{prefix}")
-        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "fused", f"fused_naive.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "fused_naive" if prefix is None else f"fused_naive_{prefix}")
-        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "fused", f"fused_geometric.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "fused_geometric" if prefix is None else f"fused_geometric_{prefix}")
+        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parent_1.pth")), f"parent_one_seed{prefix}")
+        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parent_2.pth")), f"parent_two_seed{prefix}")
+        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "naive_fused.pth")), f"fused_naive_seed{prefix}")
+        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "geometric_fused.pth")), f"fused_geometric_seed{prefix}")
 
-        print("---loaded model family---")
+        print("---loaded model family")
         return parent_one, parent_two, fused_naive, fused_geometric
 
     def _load_individual_model(self, path):
-        state = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
+        #state = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device))) OLD 
         
         num_classes = 10 if self.dataset_name == "CIFAR10" else 100
         use_bias = "NOBIAS" not in self.model_type
@@ -186,7 +187,8 @@ class ModelLoader:
             model = VGG("VGG11", num_classes, batch_norm=use_bn, bias=use_bias, relu_inplace=True)
         
         try:
-            model.load_state_dict(state["model_state_dict"])
+            model.load_state_dict(torch.load(path))
+            #model.load_state_dict(state["model_state_dict"]) OLD
         except RuntimeError as original_error:
             print(original_error)
             print(

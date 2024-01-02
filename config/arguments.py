@@ -29,10 +29,10 @@ class Config:
         parser.add_argument("--batch_size", type=int, default=100)
         parser.add_argument("--save_file_path", type=str, default=None)
         parser.add_argument("--input_space", type=bool, default=True)
-        parser.add_argument("--param_space", type=bool, default=False)
+        parser.add_argument("--param_space", type=bool, default=True)
         parser.add_argument("--pred_space", type=bool, default=True)
         parser.add_argument("--accuracy_metric", type=str, default="accuracy")
-        parser.add_argument("--correl_space", type=bool, default=False)
+        parser.add_argument("--correl_space", type=bool, default=True)
         cli_args = parser.parse_args()
 
         bool_dict = {"True": True, "False": False}
@@ -49,9 +49,10 @@ class Config:
         
         assert self.device in ["cpu", "cuda", "mps"], "Device must be 'cpu', 'cuda' or 'mps'"
         assert os.path.exists(experiment_path), "Experiment folder does not exist"
-        assert len(os.listdir(os.path.join(experiment_path, "parents"))), "Parents folder does not contain any models"
-        assert len(os.listdir(os.path.join(experiment_path, "fused"))), "Fused folder does not contain any models"
         assert self.dataset_name in ["CIFAR10", "CIFAR100"], "Invalid dataset name, should be 'CIFAR10' or 'CIFAR100'"
         assert self.model_type in ["VGG11", "VGG11_NOBIAS", "VGG11_NOBIAS_NOBN", "RESNET18", "RESNET18_NOBIAS", "RESNET18_NOBIAS_NOBN"], "Invalid model type, should be 'VGG11' or 'RESNET18', with _NOBIAS and/or _NOBN in that order"
-        assert self.seeds and 2*self.seeds <= len(os.listdir(os.path.join(experiment_path, "fused"))) and 2*self.seeds <= len(os.listdir(os.path.join(experiment_path, "parents"))), "You do not have enough differently seeded models"
-        assert self.batch_size >= 1 and self.batch_size <= 10000, "Hessian Batch Size must be between 1 and 10000"
+        assert self.seeds > 0 and self.seeds <= 5, "Choose an amount of seeds to use between 1 and 5"
+        assert self.accuracy_metric in ["accuracy", "generalisation_gap"], "Prediction metric is either accuracy or generalisation gap"
+        assert not (self.correl_space and self.seeds <= 1), "Correlation can only be computed by using more than one seed"
+        assert not (self.correl_space and not self.pred_space), "Correlation can only be computed by computing a prediction metric first"
+        assert self.batch_size >= 1 and self.batch_size <= 10000, "Batch Size must be between 1 and 10000"

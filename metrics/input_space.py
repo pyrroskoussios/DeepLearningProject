@@ -50,7 +50,7 @@ class InputSpaceMetrics:
         u = linear_fun(Variable(v))
         eigenvalue = norm(u).cpu().item()
         u = u.div(eigenvalue)
-        print("---found lower lipschitz constant---")
+        print("---found lower lipschitz constant")
         return eigenvalue
 
     def _norm_gradient_sq(self, linear_fun, v):

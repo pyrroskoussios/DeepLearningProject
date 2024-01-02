@@ -25,5 +25,5 @@ class DatasetLoader:
         train_set = dataset(root=data_root, train=True, download=True, transform=transform)
         test_set = dataset(root=data_root, train=False, download=True, transform=transform)
 
-        print("---loaded datasets---")
+        print("---loaded datasets")
         return train_set, test_set

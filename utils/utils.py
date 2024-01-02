@@ -35,7 +35,7 @@ def write_to_csv(results, csv_file_path='metrics.csv', readable=True):
         		csv_writer.writerow(row)
         	last_row = row
 
-    print(f'Data has been written to {csv_file_path}')
+    print(f"---wrote data to {csv_file_path}")
 
 
 

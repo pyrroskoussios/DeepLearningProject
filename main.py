@@ -22,28 +22,17 @@ def main(config):
     correlation_space_metrics = CorrelationSpaceMetrics(config)
     train_set, test_set = dataset_loader.load_dataset()
 
-    if seeds == 1:
-
-        models = model_loader.load_models()    
-        results = defaultdict(dict)
+    results = defaultdict(dict)
+    for seed in range(1, seeds + 1):
+        models = model_loader.load_models(seed)
         for model, name in models:
             results[name]["input_space"] = input_space_metrics.calculate_all(model)
         for model, name in models:
             results[name]["parameter_space"] = parameter_space_metrics.calculate_all(model, train_set, test_set)
-
-        return results
-
-    else:
-        for seed in range(seeds):
-            models = model_loader.load_models(seed)
-            for model, name in models:
-                results[name]["input_space"] = input_space_metrics.calculate_all(model)
-            for model, name in models:
-                results[name]["parameter_space"] = parameter_space_metrics.calculate_all(model, train_set, test_set)
-            for model, name in models:
-                results[name]["prediction_space"] = prediction_space_metrics.calculate_all(model, train_set, test_set)
-        results = correlation_space_metrics.calculate_all(results, train_set, test_set)
-        return results
+        for model, name in models:
+            results[name]["prediction_space"] = prediction_space_metrics.calculate_all(model, train_set, test_set)
+    results = correlation_space_metrics.calculate_all(results)
+    return results
 
 def pretty_print(dictionary, save_file_path):
     import json

@@ -25,6 +25,7 @@ class PredictionSpaceMetrics:
 		return prediction_space_results
 
 	def run_epoch(self, model, loader):
+		model.to(self.device)
 		with torch.no_grad():
 			model.eval()
 			correct = 0
@@ -36,5 +37,5 @@ class PredictionSpaceMetrics:
 				total += ygt.size(0)
 				correct += (predicted == ygt).sum().item()
 		sett = "training" if len(loader.dataset) == 50000 else "validation"
-		print(f"---found {sett} accuracy---")
+		print(f"---found {sett} accuracy")
 		return 100 * correct / total
