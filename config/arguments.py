@@ -1,5 +1,6 @@
-import os
 import argparse
+import os
+
 
 class Config:
     def __init__(self):
@@ -49,6 +50,7 @@ class Config:
         
         assert self.device in ["cpu", "cuda", "mps"], "Device must be 'cpu', 'cuda' or 'mps'"
         assert os.path.exists(experiment_path), "Experiment folder does not exist"
+        assert len(os.listdir(experiment_path)), "Experiment folder does not contain any models"
         assert self.dataset_name in ["CIFAR10", "CIFAR100"], "Invalid dataset name, should be 'CIFAR10' or 'CIFAR100'"
         assert self.model_type in ["VGG11", "VGG11_NOBIAS", "VGG11_NOBIAS_NOBN", "RESNET18", "RESNET18_NOBIAS", "RESNET18_NOBIAS_NOBN"], "Invalid model type, should be 'VGG11' or 'RESNET18', with _NOBIAS and/or _NOBN in that order"
         assert self.seeds > 0 and self.seeds <= 5, "Choose an amount of seeds to use between 1 and 5"

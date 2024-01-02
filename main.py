@@ -1,3 +1,5 @@
+import json
+import os
 from collections import defaultdict
 
 from config.arguments import Config
@@ -25,26 +27,25 @@ def main(config):
     results = defaultdict(dict)
     for seed in range(1, seeds + 1):
         models = model_loader.load_models(seed)
+        initial_weights = model_loader.load_initial_weights(seed)
+
         for model, name in models:
             results[name]["input_space"] = input_space_metrics.calculate_all(model)
         for model, name in models:
-            results[name]["parameter_space"] = parameter_space_metrics.calculate_all(model, train_set, test_set)
+            results[name]["parameter_space"] = parameter_space_metrics.calculate_all(model, initial_weights[name], train_set, test_set)
         for model, name in models:
             results[name]["prediction_space"] = prediction_space_metrics.calculate_all(model, train_set, test_set)
     results = correlation_space_metrics.calculate_all(results)
     return results
 
-def pretty_print(dictionary, save_file_path):
-    import json
+def display_dict(dictionary, save_file_path):
     print(json.dumps(dictionary, indent=4))
     if save_file_path:
         write_to_csv(dictionary, save_file_path)
-
 
 if __name__ == "__main__":
     
     config = Config()
     results = main(config)
-    pretty_print(results, config.save_file_path)
-
+    display_dict(results, config.save_file_path)
 
