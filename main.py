@@ -1,3 +1,5 @@
+import json
+import os
 from collections import defaultdict
 
 from config.arguments import Config
@@ -15,22 +17,29 @@ def main(config):
     parameter_space_metrics = ParameterSpaceMetrics(config)
 
     models = model_loader.load_models()
+    initial_weights = model_loader.load_initial_weights()
     train_set, test_set = dataset_loader.load_dataset()
     
     results = defaultdict(dict)
     for model, name in models:
         results[name]["input_space"] = input_space_metrics.calculate_all(model)
     for model, name in models:
-        results[name]["parameter_space"] = parameter_space_metrics.calculate_all(model, train_set, test_set)
+        results[name]["parameter_space"] = parameter_space_metrics.calculate_all(name, model, initial_weights[name], train_set, test_set)
 
     return results
 
 def pretty_print(dictionary):
-    import json
     print(json.dumps(dictionary, indent=4))
+
+def save_results_to_file(results, filepath):
+    """ Save the results dictionary to a JSON file. """
+    with open(filepath, 'w') as file:
+        json.dump(results, file, indent=4)
 
 if __name__ == "__main__":
     config = Config()
     results = main(config)
     pretty_print(results)
 
+    filepath = os.path.join(os.getcwd(), "experiments", config.experiment_name, "results.json")
+    save_results_to_file(results, filepath)

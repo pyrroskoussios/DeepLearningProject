@@ -1,7 +1,9 @@
 import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 
 class VGG(nn.Module):
     def __init__(self, vgg_name, num_classes, batch_norm=True, bias=True, relu_inplace=True):
@@ -164,12 +166,61 @@ class ModelLoader:
     def load_models(self):
         experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name)
 
-        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_1.checkpoint")), "parent_one")
-        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_2.checkpoint")), "parent_two")
-        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_naive.checkpoint")), "fused_naive")
-        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_geometric.checkpoint")), "fused_geometric")
+        # parent_one = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_1.checkpoint")), "parent_one")
+        # parent_two = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_2.checkpoint")), "parent_two")
+        # fused_naive = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_naive.checkpoint")), "fused_naive")
+        # fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_geometric.checkpoint")), "fused_geometric")
+
+        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parent_1.pth")), "parent_1")
+        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parent_2.pth")), "parent_2")
+        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "naive_fused.pth")), "naive_fused")
+        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "geometric_fused.pth")), "geometric_fused")
+
 
         return parent_one, parent_two, fused_naive, fused_geometric
+
+    def load_initial_weights(self):
+        """
+        Load initial weights of the models. These will be used during the computation of the sharpness metrics.
+        """
+        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name)
+        initial_weights = {}
+
+        # Load initial weights of the parents
+        for name in ["parent_1", "parent_2"]:
+            path = os.path.join(experiment_path, f"{name}_initial_weights.pth")
+            initial_weights[name]= torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
+
+
+        # Load initial weights of the fused models
+        # We define as "initial" weights, the weights of the parent for which the square distance is the largest.
+        # To compute the distances, we first need to load the parents weights.
+        path = os.path.join(experiment_path, "parent_1.pth")
+        theta_1 = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
+
+        path = os.path.join(experiment_path, "parent_2.pth")
+        theta_2 = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
+
+        for name in ["naive_fused", "geometric_fused"]:
+            path = os.path.join(experiment_path, f"{name}.pth")
+            theta_fused = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
+
+            theta_square_dist_1 = 0
+            for param_name, param in theta_fused.items():
+                param_init = theta_1[param_name]
+                theta_square_dist_1 += ((param - param_init)**2).sum().item()
+            
+            theta_square_dist_2 = 0
+            for param_name, param in theta_fused.items():
+                param_init = theta_2[param_name]
+                theta_square_dist_2 += ((param - param_init)**2).sum().item()
+            
+            if theta_square_dist_1 > theta_square_dist_2:
+                initial_weights[name] = theta_1
+            else:
+                initial_weights[name] = theta_2
+
+        return initial_weights
 
     def _load_individual_model(self, path):
         state = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
@@ -184,7 +235,8 @@ class ModelLoader:
             model = VGG("VGG11", num_classes, batch_norm=use_bn, bias=use_bias, relu_inplace=True)
         
         try:
-            model.load_state_dict(state["model_state_dict"])
+            # model.load_state_dict(state["model_state_dict"])
+            model.load_state_dict(state)
         except RuntimeError as original_error:
             print(original_error)
             print(
