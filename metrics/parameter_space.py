@@ -2,75 +2,85 @@ import copy
 import os
 import warnings
 from typing import Callable, Dict, Tuple
-
-import numpy as np
 import pyhessian
 import torch
 import torchvision.models as models
 from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
+import gc
+import numpy as np
+
 
 
 class ParameterSpaceMetrics:
     def __init__(self, config):
         self.device = config.device
-        self.hessian_batch_size = config.hessian_batch_size
+        self.hessian_batch_size = config.batch_size
+        self.measure = config.param_space
         self.experiment_name = config.experiment_name
 
+
     def calculate_all(self, name, model, theta_0, train_set, test_set):
+        model.to(self.device)
         model.eval()
         for param in model.parameters():
             param.requires_grad = True
 
         parameter_space_results = dict()
-        #parameter_space_results["hessian_eigenvalue_spectrum_density"] = self.hessian_eigenvalue_spectrum_density(model, test_set, self.hessian_batch_size)
-        parameter_space_results["hessian_top_eigenvalue"] = self.hessian_top_eigenvalue(model, test_set, self.hessian_batch_size)
-        parameter_space_results["hessian_trace"] = self.hessian_trace(model, test_set, self.hessian_batch_size)
 
+        if self.measure:
+            #parameter_space_results["hessian_eigenvalue_spectrum_density"] = self.hessian_eigenvalue_spectrum_density(model, test_set, self.hessian_batch_size)
+            parameter_space_results["hessian_top_eigenvalue"] = self.hessian_top_eigenvalue(model, test_set, self.hessian_batch_size)
+            parameter_space_results["hessian_trace"] = self.hessian_trace(model, test_set, self.hessian_batch_size)
 
-        model = model.to(self.device)
-        # Resetting the grad values. This is apparently necessary after using loss.backward(create_graph=True), 
-        # which seems to be used by pyhessian in order to compute higher order derivatives.
-        for param in model.parameters():
-            param.grad = None
+            # Resetting the grad values. This is apparently necessary after using loss.backward(create_graph=True), 
+            # which seems to be used by pyhessian in order to compute higher order derivatives.
+            for param in model.parameters():
+                param.grad = None
 
-        # FIXME: in the paper, they say to use the training dataset: is that correct tho?
-        dataset = train_set
+            dataset = test_set  # FIXME: in the paper, they say to use the training dataset: is that correct tho? B: imo we use test lol
+            loss_function = torch.nn.CrossEntropyLoss()
 
-        loss_function = torch.nn.CrossEntropyLoss()
-        #FIXME: SHOULD I USE THE ACCURACY OR THE LOSS?
-        # model_accuracy = self._get_accuracy(name, model, DataLoader(train_set, batch_size=64, shuffle=False))
-        model_accuracy = self._get_loss(name, model, DataLoader(train_set, batch_size=64, shuffle=False), loss_function)
-        sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig = self.sharpness_measures(model, theta_0, loss_function, dataset, model_accuracy)
-        
-        parameter_space_results["sharpness_flatness"] = sharpness_flatness
-        parameter_space_results["sharpness_init"] = sharpness_init
-        parameter_space_results["sharpness_orig"] = sharpness_orig
-        parameter_space_results["sharpness_mag_flat"] = sharpness_mag_flat
-        parameter_space_results["sharpness_mag_init"] = sharpness_mag_init
-        parameter_space_results["sharpness_mag_orig"] = sharpness_mag_orig
+            model_accuracy = self._get_accuracy(name, model, DataLoader(test_set, batch_size=self.hessian_batch_size, shuffle=False))
+            model_accuracy = self._get_loss(name, model, DataLoader(test_set, batch_size=self.hessian_batch_size, shuffle=False), loss_function)
+            
+            
+            sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig = self.sharpness_measures(model, theta_0, loss_function, dataset, model_accuracy)
+            
+            parameter_space_results["sharpness_flatness"] = sharpness_flatness
+            parameter_space_results["sharpness_init"] = sharpness_init
+            parameter_space_results["sharpness_orig"] = sharpness_orig
+            parameter_space_results["sharpness_mag_flat"] = sharpness_mag_flat
+            parameter_space_results["sharpness_mag_init"] = sharpness_mag_init
+            parameter_space_results["sharpness_mag_orig"] = sharpness_mag_orig
+            
+            pac_bayes_flatness, flatness_init, flatness_orig, pac_bayes_mag_flat, flatness_mag_init, flatness_mag_orig = self.flatness_measures(model, theta_0, loss_function, dataset, model_accuracy)
 
-        pac_bayes_flatness, flatness_init, flatness_orig, pac_bayes_mag_flat, flatness_mag_init, flatness_mag_orig = self.flatness_measures(model, theta_0, loss_function, dataset, model_accuracy)
-
-        parameter_space_results["pac_bayes_flatness"] = pac_bayes_flatness
-        parameter_space_results["flatness_init"] = flatness_init
-        parameter_space_results["flatness_orig"] = flatness_orig
-        parameter_space_results["pac_bayes_mag_flat"] = pac_bayes_mag_flat
-        parameter_space_results["flatness_mag_init"] = flatness_mag_init
-        parameter_space_results["flatness_mag_orig"] = flatness_mag_orig
-
+            parameter_space_results["pac_bayes_flatness"] = pac_bayes_flatness
+            parameter_space_results["flatness_init"] = flatness_init
+            parameter_space_results["flatness_orig"] = flatness_orig
+            parameter_space_results["pac_bayes_mag_flat"] = pac_bayes_mag_flat
+            parameter_space_results["flatness_mag_init"] = flatness_mag_init
+            parameter_space_results["flatness_mag_orig"] = flatness_mag_orig
+            
         return parameter_space_results
 
     def hessian_top_eigenvalue(self, model, test_set, batch_size):
         hessian_module = self._create_hessian_module(model, test_set, batch_size)
         top_eigenvalue = hessian_module.eigenvalues(top_n=1)[0][0]
         model.zero_grad()
+        del hessian_module
+        gc.collect()
+        print("---found Hessian maximum eigenvalue")
         return top_eigenvalue
 
     def hessian_trace(self, model, test_set, batch_size):
         hessian_module = self._create_hessian_module(model, test_set, batch_size)
         trace = np.mean(hessian_module.trace())
         model.zero_grad()
+        del hessian_module
+        gc.collect()
+        print("---found Hessian trace")
         return trace
     
     def hessian_eigenvalue_spectrum_density(self, model, test_set, batch_size):
@@ -80,7 +90,7 @@ class ParameterSpaceMetrics:
         fig, ax = plt.subplots()
         ax.semilogy(grids, density + 1.0e-7)
         ax.set_ylabel('Density (Log Scale)', fontsize=14, labelpad=10)
-        ax.set_xlabel('Eigenvlaue', fontsize=14, labelpad=10)
+        ax.set_xlabel('Eigenvalue', fontsize=14, labelpad=10)
         ax.axis([np.min(eigenvalues) - 1, np.max(eigenvalues) + 1, None, None])
         return fig
 
@@ -118,16 +128,18 @@ class ParameterSpaceMetrics:
         """
         model.eval()
 
-        path = os.path.join(os.getcwd(), "experiments", self.experiment_name, "accuracies")
-        filename = os.path.join(path, f"{name}_accuracy.pt")
 
+        sett = "training" if len(loader.dataset) == 50000 else "validation"
+        seed = name.rsplit('_', 1)[-1]
+        path = os.path.join(os.getcwd(), "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
+        filename = os.path.join(path, f"{name}_{sett}_accuracy.pt")
+       
         # Check if the accuracy has already been computed and saved
         if os.path.exists(filename):
             return torch.load(filename)
-
+        
         correct = 0
         total = 0
-
         with torch.no_grad():
             for inputs, labels in loader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
@@ -140,11 +152,12 @@ class ParameterSpaceMetrics:
         
         avg_accuracy = correct / total
         
-        # Save the computed loss
+        # Save the computed accuracy
         if not os.path.exists(path):
             os.makedirs(path)
         torch.save(avg_accuracy, filename)
-
+        
+        print(f"---found {sett} accuracy")
         return avg_accuracy
 
     def _estimate_accuracy(self, model: torch.nn.Module,
@@ -171,22 +184,24 @@ class ParameterSpaceMetrics:
 
         return correct / total
     
-    def _get_loss(self, name: str, model: torch.nn.Module, loader: torch.utils.data.DataLoader, loss_function: Callable) -> float:
+    def _get_loss(self, name, model: torch.nn.Module, loader: torch.utils.data.DataLoader, loss_function: Callable) -> float:
         """
         Compute the empirical loss of a given model on a dataset.
         Check if the loss was previously calculated and saved. If so, load and return it.
         Otherwise, calculate, save, and return the loss.
         """
         model.eval()
-
-        path = os.path.join(os.getcwd(), "experiments", self.experiment_name, "losses")
-        filename = os.path.join(path, f"{name}_loss.pt")
+        
+        sett = "training" if len(loader.dataset) == 50000 else "validation"
+        seed = name.rsplit('_', 1)[-1]
+        path = os.path.join(os.getcwd(), "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
+        filename = os.path.join(path, f"{name}_{sett}_loss.pt")
 
         # Check if the loss has already been computed and saved
         if os.path.exists(filename):
             return torch.load(filename)
-    
-        loss = 0
+        
+        run_loss = 0
         total = 0
 
         with torch.no_grad():
@@ -194,16 +209,19 @@ class ParameterSpaceMetrics:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
 
                 outputs = model(inputs)
-                loss += loss_function(outputs, labels)
+                loss = loss_function(outputs, labels)
+                run_loss += loss.item()
                 total += labels.size(0)
 
-        avg_loss = loss / total
+        avg_loss = run_loss / total
 
+        
         # Save the computed loss
         if not os.path.exists(path):
             os.makedirs(path)
         torch.save(avg_loss, filename)
-
+        
+        print(f"---found {sett} loss")
         return avg_loss
 
     def _estimate_loss(self, model: torch.nn.Module,
@@ -359,7 +377,6 @@ class ParameterSpaceMetrics:
                 theta_square_dist += ((param - param_init)**2).sum().item()
 
             sharpness_init = theta_square_dist * np.log(2 * n_params / delta) / (sigma**2) + np.log(m/delta) + 10
-            sharpness_init = 1
 
             # 3rd Measure: "sharpness-orig"
             theta_square_norm = sum(p.pow(2.0).sum() for p in model.parameters()).item()
@@ -385,8 +402,7 @@ class ParameterSpaceMetrics:
                 denominator = epsilon**2 + (sigma_mag * (param - param_init))**2
                 d_KL += (torch.log(numerator/denominator)).sum().item()
 
-            # sharpness_mag_init = d_KL/2 + np.log(m/delta) + 10
-            sharpness_mag_init = 1
+            sharpness_mag_init = d_KL/2 + np.log(m/delta) + 10
 
 
             # 6th Measure: "sharpness-mag-orig"
@@ -397,6 +413,8 @@ class ParameterSpaceMetrics:
                 tmp += (torch.log(numerator/denominator)).sum().item()
 
             sharpness_mag_orig = tmp/2 + np.log(m/delta) + 10
+
+        print("---found sharpness metrics")
 
         return sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig
 
@@ -517,7 +535,6 @@ class ParameterSpaceMetrics:
             d_KL += (torch.log(numerator/denominator)).sum().item()
 
         flatness_mag_init = d_KL/2 + np.log(m/delta) + 10
-        flatness_mag_init = 1
 
 
         # 6th Measure: "flatness-mag-orig"
@@ -529,4 +546,7 @@ class ParameterSpaceMetrics:
 
         flatness_mag_orig = d_KL/2 + np.log(m/delta) + 10
 
+        print("---found flatness metrics")
         return pac_bayes_flatness, flatness_init, flatness_orig, pac_bayes_mag_flat, flatness_mag_init, flatness_mag_orig
+
+

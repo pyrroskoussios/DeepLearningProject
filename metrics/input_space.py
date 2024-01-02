@@ -5,11 +5,13 @@ from torch.autograd import Variable
 class InputSpaceMetrics:
     def __init__(self, config):
         self.device = config.device
+        self.measure = config.input_space
 
     def calculate_all(self, model):
         model.eval()
         input_space_results = dict()
-        input_space_results["lipschitz_constant"] = self.lipschitz_constant_power_method(model)
+        if self.measure:
+            input_space_results["lipschitz_constant"] = self.lipschitz_constant_power_method(model)
         return input_space_results
         
     def lipschitz_constant_power_method(self, model, eps=1e-8, max_iter=500):
@@ -48,6 +50,7 @@ class InputSpaceMetrics:
         u = linear_fun(Variable(v))
         eigenvalue = norm(u).cpu().item()
         u = u.div(eigenvalue)
+        print("---found lower lipschitz constant")
         return eigenvalue
 
     def _norm_gradient_sq(self, linear_fun, v):

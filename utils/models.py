@@ -3,6 +3,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pathlib import Path
 
 
 class VGG(nn.Module):
@@ -163,33 +164,29 @@ class ModelLoader:
         self.model_type = config.model_type
         self.dataset_name = config.dataset_name
 
-    def load_models(self):
-        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name)
+    def load_models(self, prefix):
+        
+        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name, str(self.experiment_name + f"_seed{prefix}"))
 
-        # parent_one = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_1.checkpoint")), "parent_one")
-        # parent_two = (self._load_individual_model(os.path.join(experiment_path, "parents", "parent_2.checkpoint")), "parent_two")
-        # fused_naive = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_naive.checkpoint")), "fused_naive")
-        # fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "fused", "fused_geometric.checkpoint")), "fused_geometric")
+        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parent_1.pth")), f"parent_1_seed{prefix}")
+        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parent_2.pth")), f"parent_2_seed{prefix}")
+        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "naive_fused.pth")), f"naive_fused_seed{prefix}")
+        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "geometric_fused.pth")), f"geometric_fused_seed{prefix}")
 
-        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parent_1.pth")), "parent_1")
-        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parent_2.pth")), "parent_2")
-        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "naive_fused.pth")), "naive_fused")
-        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "geometric_fused.pth")), "geometric_fused")
-
-
+        print("---loaded model family")
         return parent_one, parent_two, fused_naive, fused_geometric
 
-    def load_initial_weights(self):
+    def load_initial_weights(self, prefix):
         """
         Load initial weights of the models. These will be used during the computation of the sharpness metrics.
         """
-        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name)
+        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name, str(self.experiment_name + f"_seed{prefix}"))
         initial_weights = {}
 
         # Load initial weights of the parents
         for name in ["parent_1", "parent_2"]:
             path = os.path.join(experiment_path, f"{name}_initial_weights.pth")
-            initial_weights[name]= torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
+            initial_weights[str(name + f"_seed{prefix}")]= torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
 
 
         # Load initial weights of the fused models
@@ -216,10 +213,11 @@ class ModelLoader:
                 theta_square_dist_2 += ((param - param_init)**2).sum().item()
             
             if theta_square_dist_1 > theta_square_dist_2:
-                initial_weights[name] = theta_1
+                initial_weights[str(name + f"_seed{prefix}")] = theta_1
             else:
-                initial_weights[name] = theta_2
+                initial_weights[str(name + f"_seed{prefix}")] = theta_2
 
+        print("---loaded initial model family")
         return initial_weights
 
     def _load_individual_model(self, path):
@@ -235,7 +233,7 @@ class ModelLoader:
             model = VGG("VGG11", num_classes, batch_norm=use_bn, bias=use_bias, relu_inplace=True)
         
         try:
-            # model.load_state_dict(state["model_state_dict"])
+            #model.load_state_dict(torch.load(path))
             model.load_state_dict(state)
         except RuntimeError as original_error:
             print(original_error)
@@ -244,17 +242,6 @@ class ModelLoader:
             exit()
 
         return model
-
-
-
-
-
-
-
-
-
-
-
 
 
 
