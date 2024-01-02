@@ -168,10 +168,10 @@ class ModelLoader:
         
         experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name, str(self.experiment_name + f"_seed{prefix}"))
 
-        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parent_1.pth")), f"parent_one_seed{prefix}")
-        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parent_2.pth")), f"parent_two_seed{prefix}")
-        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "naive_fused.pth")), f"fused_naive_seed{prefix}")
-        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "geometric_fused.pth")), f"fused_geometric_seed{prefix}")
+        parent_one = (self._load_individual_model(os.path.join(experiment_path, "parent_1.pth")), f"parent_1_seed{prefix}")
+        parent_two = (self._load_individual_model(os.path.join(experiment_path, "parent_2.pth")), f"parent_2_seed{prefix}")
+        fused_naive = (self._load_individual_model(os.path.join(experiment_path, "naive_fused.pth")), f"naive_fused_seed{prefix}")
+        fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "geometric_fused.pth")), f"geometric_fused_seed{prefix}")
 
         print("---loaded model family")
         return parent_one, parent_two, fused_naive, fused_geometric
@@ -186,7 +186,7 @@ class ModelLoader:
         # Load initial weights of the parents
         for name in ["parent_1", "parent_2"]:
             path = os.path.join(experiment_path, f"{name}_initial_weights.pth")
-            initial_weights[name]= torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
+            initial_weights[str(name + f"_seed{prefix}")]= torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
 
 
         # Load initial weights of the fused models
@@ -213,15 +213,15 @@ class ModelLoader:
                 theta_square_dist_2 += ((param - param_init)**2).sum().item()
             
             if theta_square_dist_1 > theta_square_dist_2:
-                initial_weights[name] = theta_1
+                initial_weights[str(name + f"_seed{prefix}")] = theta_1
             else:
-                initial_weights[name] = theta_2
+                initial_weights[str(name + f"_seed{prefix}")] = theta_2
 
         print("---loaded initial model family")
         return initial_weights
 
     def _load_individual_model(self, path):
-        state = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device))) OLD 
+        state = torch.load(path, map_location=(lambda s, _: torch.serialization.default_restore_location(s, self.device)))
         
         num_classes = 10 if self.dataset_name == "CIFAR10" else 100
         use_bias = "NOBIAS" not in self.model_type

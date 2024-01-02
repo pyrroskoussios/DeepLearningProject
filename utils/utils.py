@@ -38,6 +38,9 @@ def write_to_csv(results, csv_file_path='metrics.csv', readable=True):
     print(f"---wrote data to {csv_file_path}")
 
 
-
+def save_results_to_json(results, filepath):
+    """ Save the results dictionary to a JSON file. """
+    with open(filepath, 'w') as file:
+        json.dump(results, file, indent=4)
 
 

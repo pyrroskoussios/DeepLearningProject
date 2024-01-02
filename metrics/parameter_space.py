@@ -29,7 +29,7 @@ class ParameterSpaceMetrics:
         parameter_space_results = dict()
 
         if self.measure:
-            #parameter_space_results["hessian_eigenvalue_spectrum_density"] = self.hessian_eigenvalue_spectrum_density(model, test_set, self.hessian_batch_size)
+            parameter_space_results["hessian_eigenvalue_spectrum_density"] = self.hessian_eigenvalue_spectrum_density(model, test_set, self.hessian_batch_size)
             parameter_space_results["hessian_top_eigenvalue"] = self.hessian_top_eigenvalue(model, test_set, self.hessian_batch_size)
             parameter_space_results["hessian_trace"] = self.hessian_trace(model, test_set, self.hessian_batch_size)
 
@@ -44,6 +44,7 @@ class ParameterSpaceMetrics:
             # model_accuracy = self._get_accuracy(model, DataLoader(train_set, batch_size=64, shuffle=False))
             model_accuracy = self._get_loss(model, DataLoader(train_set, batch_size=self.hessian_batch_size, shuffle=False), loss_function)
             
+            
             sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig = self.sharpness_measures(model, theta_0, loss_function, dataset, model_accuracy)
             
             parameter_space_results["sharpness_flatness"] = sharpness_flatness
@@ -52,7 +53,7 @@ class ParameterSpaceMetrics:
             parameter_space_results["sharpness_mag_flat"] = sharpness_mag_flat
             parameter_space_results["sharpness_mag_init"] = sharpness_mag_init
             parameter_space_results["sharpness_mag_orig"] = sharpness_mag_orig
-
+            
             pac_bayes_flatness, flatness_init, flatness_orig, pac_bayes_mag_flat, flatness_mag_init, flatness_mag_orig = self.flatness_measures(model, theta_0, loss_function, dataset, model_accuracy)
 
             parameter_space_results["pac_bayes_flatness"] = pac_bayes_flatness
@@ -61,7 +62,7 @@ class ParameterSpaceMetrics:
             parameter_space_results["pac_bayes_mag_flat"] = pac_bayes_mag_flat
             parameter_space_results["flatness_mag_init"] = flatness_mag_init
             parameter_space_results["flatness_mag_orig"] = flatness_mag_orig
-
+            
         return parameter_space_results
 
     def hessian_top_eigenvalue(self, model, test_set, batch_size):
