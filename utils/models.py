@@ -170,6 +170,7 @@ class ModelLoader:
         fused_naive = (self._load_individual_model(os.path.join(experiment_path, "fused", f"fused_naive.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "fused_naive" if prefix is None else f"fused_naive_{prefix}")
         fused_geometric = (self._load_individual_model(os.path.join(experiment_path, "fused", f"fused_geometric.checkpoint{'' if prefix is None else '_' + str(prefix)}")), "fused_geometric" if prefix is None else f"fused_geometric_{prefix}")
 
+        print("---loaded model family---")
         return parent_one, parent_two, fused_naive, fused_geometric
 
     def _load_individual_model(self, path):

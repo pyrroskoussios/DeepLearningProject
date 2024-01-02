@@ -6,7 +6,7 @@ from metrics.input_space import InputSpaceMetrics
 from metrics.parameter_space import ParameterSpaceMetrics
 from metrics.prediction_space import PredictionSpaceMetrics
 from metrics.correlation_space import CorrelationSpaceMetrics
-
+from utils.utils import write_to_csv
 from utils.datasets import DatasetLoader
 from utils.models import ModelLoader
 
@@ -26,13 +26,10 @@ def main(config):
 
         models = model_loader.load_models()    
         results = defaultdict(dict)
-        print("Starting calculation.")
         for model, name in models:
             results[name]["input_space"] = input_space_metrics.calculate_all(model)
-        print("Finished finding input space metrics.")
         for model, name in models:
             results[name]["parameter_space"] = parameter_space_metrics.calculate_all(model, train_set, test_set)
-        print("Finished finding parameter space metrics.")
 
         return results
 
@@ -41,24 +38,24 @@ def main(config):
             models = model_loader.load_models(seed)
             for model, name in models:
                 results[name]["input_space"] = input_space_metrics.calculate_all(model)
-            print("Finished finding input space metrics.")
             for model, name in models:
                 results[name]["parameter_space"] = parameter_space_metrics.calculate_all(model, train_set, test_set)
-            print("Finished finding parameter space metrics.")
             for model, name in models:
                 results[name]["prediction_space"] = prediction_space_metrics.calculate_all(model, train_set, test_set)
-            print("Finished finding prediction space metrics.")
         results = correlation_space_metrics.calculate_all(results, train_set, test_set)
         return results
 
-def pretty_print(dictionary):
+def pretty_print(dictionary, save_file_path):
     import json
     print(json.dumps(dictionary, indent=4))
+    if save_file_path:
+        write_to_csv(dictionary, save_file_path)
+
 
 if __name__ == "__main__":
     
     config = Config()
     results = main(config)
-    pretty_print(results)
+    pretty_print(results, config.save_file_path)
 
 

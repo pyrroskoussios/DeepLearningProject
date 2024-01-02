@@ -6,7 +6,7 @@ from scipy.stats import pearsonr
 from scipy.stats import kendalltau
 import numpy as np
 from collections import defaultdict
-
+from utils import write_to_csv
 
 
 
@@ -17,22 +17,27 @@ class CorrelationSpaceMetrics:
 		self.mode = config.accuracy_metric
 		self.seeds = config.seeds
 		self.batch_size = config.batch_size
-		
+		self.measure = config.correl_space
 	def calculate_all(self, all_results):
-		accuracies, sorted_results = self.sort_results(all_results)
+		accuracies, sorted_results = self.sort_filter_results(all_results)
 		correlation_space_results = dict()
 
-		for model_name, _, metric_name, metric_values in sorted_results:
-			correlation_space_results[str(model_name + '_Kendall_' + metric_name)] = self.kendall_rank_correlation(metric_values, accuracies[model_name])
-			correlation_space_results[str(model_name + '_Pearson_' + metric_name)] = self.pearson_correlation(metric_values, accuracies[model_name])
+		if self.measure:
+			for model_name, _, metric_name, metric_values in sorted_results:
+				correlation_space_results[str("kendall_" + metric_name)] = self.kendall_rank_correlation(metric_values, accuracies[model_name])
+				correlation_space_results[str("pearson_" + metric_name)] = self.pearson_correlation(metric_values, accuracies[model_name])
+			
+				all_results[model_name]["correlation_space"] = correlation_space_results
+			
+		return all_results
 
-	def kendall_rank_correlation(self, metric, accuracy):
-		return kendalltau(metric, accuracy)[0]
+	def kendall_rank_correlation(self, metric_values, accuracy):
+		return kendalltau(metric_values, accuracy)[0]
 
-	def pearson_correlation(self, metric, accuracy):
-		return pearsonr(metric, accuracy)[0]
+	def pearson_correlation(self, metric_values, accuracy):
+		return pearsonr(metric_values, accuracy)[0]
 
-	def sort_results(self, results):
+	def sort_filter_results(self, results):
 		grouped_metrics = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
 		for model_name, metric_space in results.items():
@@ -56,7 +61,6 @@ class CorrelationSpaceMetrics:
 		return accuracies, grouped_list
 
 
-
 if __name__ == "__main__":
 	cl = CorrelationSpaceMetrics(None)
 	results = defaultdict(dict)
@@ -67,16 +71,27 @@ if __name__ == "__main__":
 	results["parent_one_1"]["input_space"] = {"hessian": 22, "gaussian": 44}
 	results["parent_one_2"]["input_space"] = {"hessian": 55, "gaussian": 66}
 	results["parent_one_2"]["param_space"] = {"integral": 33, "derivative": 11}
+	results["parent_one_1"]["param_space"] = {"integral": 32, "derivative": 13}
 	results["parent_two_1"]["param_space"] = {"integral": 222, "derivative": 333}
 	results["parent_two_2"]["param_space"] = {"integral": 111, "derivative": 444}
+	results["parent_two_2"]["prediction_space"] = {"accuracy": 97}
+	results["parent_two_1"]["prediction_space"] = {"accuracy": 98}
+	results["parent_one_2"]["prediction_space"] = {"accuracy": 86}
+	results["parent_one_1"]["prediction_space"] = {"accuracy": 87}
+	results["fuse_1"]["prediction_space"] = {"accuracy": 77}
+	results["fuse_2"]["prediction_space"] = {"accuracy": 78}
 
 	print(results)
-	cl.sort_results(results)
+	print("-----------------")
+	#cl.sort_results(results)
+	results = cl.calculate_all(results)
+	print("*-----------*")
+	print(results)
+	print("---------")
+	import json
+	print(json.dumps(results, indent=4))
 
-
-
-
-
-
+	#cl.write_to_csv(results)
+	write_to_csv(results)
 
 

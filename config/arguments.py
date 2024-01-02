@@ -12,7 +12,11 @@ class Config:
         self.seeds = cli_args.seeds
         self.batch_size = cli_args.batch_size
         self.accuracy_metric = cli_args.accuracy_metric
-
+        self.save_file_path = cli_args.save_file_path
+        self.input_space = cli_args.input_space
+        self.param_space = cli_args.param_space
+        self.pred_space = cli_args.pred_space
+        self.correl_space = cli_args.correl_space
         self._check_validity()
 
     def _parse_args(self):
@@ -23,8 +27,12 @@ class Config:
         parser.add_argument("--dataset_name", required=True, type=str)
         parser.add_argument("--seeds", required=True, type=int)
         parser.add_argument("--batch_size", type=int, default=100)
+        parser.add_argument("--save_file_path", type=str, default=None)
+        parser.add_argument("--input_space", type=bool, default=True)
+        parser.add_argument("--param_space", type=bool, default=False)
+        parser.add_argument("--pred_space", type=bool, default=True)
         parser.add_argument("--accuracy_metric", type=str, default="accuracy")
-
+        parser.add_argument("--correl_space", type=bool, default=False)
         cli_args = parser.parse_args()
 
         bool_dict = {"True": True, "False": False}

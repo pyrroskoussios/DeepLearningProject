@@ -13,37 +13,37 @@ class ParameterSpaceMetrics:
     def __init__(self, config):
         self.device = config.device
         self.hessian_batch_size = config.batch_size
+        self.measure = config.param_space
 
     def calculate_all(self, model, train_set, test_set):
         for param in model.parameters():
             param.requires_grad = True
         model.eval()
         parameter_space_results = dict()
-        #parameter_space_results["hessian_eigenvalue_spectrum_density"] = self.hessian_eigenvalue_spectrum_density(model, test_set, self.hessian_batch_size)
+        if self.measure:
+            parameter_space_results["hessian_eigenvalue_spectrum_density"] = self.hessian_eigenvalue_spectrum_density(model, test_set, self.hessian_batch_size)
         
-        parameter_space_results["hessian_top_eigenvalue"] = self.hessian_top_eigenvalue(model, test_set, self.hessian_batch_size)
-        print("done one")
-        parameter_space_results["hessian_trace"] = self.hessian_trace(model, test_set, self.hessian_batch_size)
-        print("done two")
-        model = model.to(self.device)
-        # FIXME: theta_0 should be the initial weights used during training.
-        theta_0 = models.resnet18(pretrained=False).state_dict()
-        loss_function = torch.nn.CrossEntropyLoss()
-        # FIXME: in the paper, they say to use the training dataset: is that correct tho?
-        dataset = train_set
-        # TODO: MAYBE CREATE A LIST WITH ALL THE ACCURACIES THAT APPEAR ON THE PAPER, AND CHOOSE THE CORRECT VALUE DEPENDING ON THE MODEL EVALUATED
-        model_accuracy = 0.9
-        """
-        sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig = self.sharpness_measures(model, model.state_dict(), theta_0, loss_function, dataset, model_accuracy)
-        
-        parameter_space_results["sharpness_flatness"] = sharpness_flatness
-        # parameter_space_results["sharpness_init"] = sharpness_init
-        parameter_space_results["sharpness_orig"] = sharpness_orig
-        parameter_space_results["sharpness_mag_flat"] = sharpness_mag_flat
-        # parameter_space_results["sharpness_mag_init"] = sharpness_mag_init
-        parameter_space_results["sharpness_mag_orig"] = sharpness_mag_orig
-        """
-
+            parameter_space_results["hessian_top_eigenvalue"] = self.hessian_top_eigenvalue(model, test_set, self.hessian_batch_size)
+            #parameter_space_results["hessian_trace"] = self.hessian_trace(model, test_set, self.hessian_batch_size)
+            
+            model = model.to(self.device)
+            # FIXME: theta_0 should be the initial weights used during training.
+            theta_0 = models.resnet18(pretrained=False).state_dict()
+            loss_function = torch.nn.CrossEntropyLoss()
+            # FIXME: in the paper, they say to use the training dataset: is that correct tho?
+            dataset = train_set
+            # TODO: MAYBE CREATE A LIST WITH ALL THE ACCURACIES THAT APPEAR ON THE PAPER, AND CHOOSE THE CORRECT VALUE DEPENDING ON THE MODEL EVALUATED
+            model_accuracy = 0.9
+            
+            sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig = self.sharpness_measures(model, model.state_dict(), theta_0, loss_function, dataset, model_accuracy)
+            
+            parameter_space_results["sharpness_flatness"] = sharpness_flatness
+            # parameter_space_results["sharpness_init"] = sharpness_init
+            parameter_space_results["sharpness_orig"] = sharpness_orig
+            parameter_space_results["sharpness_mag_flat"] = sharpness_mag_flat
+            # parameter_space_results["sharpness_mag_init"] = sharpness_mag_init
+            parameter_space_results["sharpness_mag_orig"] = sharpness_mag_orig
+            
         return parameter_space_results
 
     def hessian_top_eigenvalue(self, model, test_set, batch_size):
@@ -52,6 +52,7 @@ class ParameterSpaceMetrics:
         model.zero_grad()
         del hessian_module
         gc.collect()
+        print("---found Hessian maximum eigenvalue---")
         return top_eigenvalue
 
     def hessian_trace(self, model, test_set, batch_size):
@@ -60,6 +61,7 @@ class ParameterSpaceMetrics:
         model.zero_grad()
         del hessian_module
         gc.collect()
+        print("---found Hessian trace---")
         return trace
     
     def hessian_eigenvalue_spectrum_density(self, model, test_set, batch_size):
@@ -367,5 +369,5 @@ class ParameterSpaceMetrics:
                 tmp += (torch.log(numerator/denominator)).sum().item()
 
             sharpness_mag_orig = tmp/4 + np.log(m/delta) + 10
-
+        print("---found sharpness metrics---")
         return sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig

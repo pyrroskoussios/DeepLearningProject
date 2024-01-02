@@ -7,18 +7,21 @@ class PredictionSpaceMetrics:
 		self.device = config.device
 		self.batch_size = config.batch_size
 		self.mode = config.accuracy_metric
+		self.measure = config.pred_space
 
 	def calculate_all(self, model, train_set, test_set):
 		prediction_space_results = dict()
-		if self.mode == "accuracy":
-			test_loader = DataLoader(test_set, batch_size=self.batch_size, shuffle=False)
-			prediction_space_results["accuracy"] = self.run_epoch(model, test_loader)
-		else:
-			train_loader = DataLoader(train_set, batch_size=self.batch_size, shuffle=False)
-			test_loader = DataLoader(test_set, batch_size=self.batch_size, shuffle=False)
-			train_acc = self.run_epoch(model, train_loader)
-			test_acc = self.run_epoch(model, test_loader)
-			prediction_space_results["generalisation_gap"] = 1 / abs(train_acc - test_acc)
+
+		if self.measure:
+			if self.mode == "accuracy":
+				test_loader = DataLoader(test_set, batch_size=self.batch_size, shuffle=False)
+				prediction_space_results["accuracy"] = self.run_epoch(model, test_loader)
+			else:
+				train_loader = DataLoader(train_set, batch_size=self.batch_size, shuffle=False)
+				test_loader = DataLoader(test_set, batch_size=self.batch_size, shuffle=False)
+				train_acc = self.run_epoch(model, train_loader)
+				test_acc = self.run_epoch(model, test_loader)
+				prediction_space_results["generalisation_gap"] = 1 / abs(train_acc - test_acc)
 		return prediction_space_results
 
 	def run_epoch(self, model, loader):
@@ -32,4 +35,6 @@ class PredictionSpaceMetrics:
 				predicted = torch.argmax(ypr, 1)
 				total += ygt.size(0)
 				correct += (predicted == ygt).sum().item()
+		sett = "training" if len(loader.dataset) == 50000 else "validation"
+		print(f"---found {sett} accuracy---")
 		return 100 * correct / total
