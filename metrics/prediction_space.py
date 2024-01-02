@@ -9,7 +9,8 @@ class PredictionSpaceMetrics:
 		self.batch_size = config.batch_size
 		self.mode = config.accuracy_metric
 		self.measure = config.pred_space
-
+		self.experiment_name = config.experiment_name
+		
 	def calculate_all(self, name, model, train_set, test_set):
 		model.to(self.device)
 
