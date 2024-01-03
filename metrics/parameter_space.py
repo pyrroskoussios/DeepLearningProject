@@ -4,7 +4,6 @@ import warnings
 from typing import Callable, Dict, Tuple
 import pyhessian
 import torch
-import torchvision.models as models
 from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 import gc
@@ -38,14 +37,12 @@ class ParameterSpaceMetrics:
             for param in model.parameters():
                 param.grad = None
 
-            dataset = test_set  # FIXME: in the paper, they say to use the training dataset: is that correct tho? B: imo we use test lol
             loss_function = torch.nn.CrossEntropyLoss()
 
-            model_accuracy = self._get_accuracy(name, model, DataLoader(test_set, batch_size=self.hessian_batch_size, shuffle=False))
-            model_accuracy = self._get_loss(name, model, DataLoader(test_set, batch_size=self.hessian_batch_size, shuffle=False), loss_function)
+            _ = self._get_accuracy(name, model, DataLoader(test_set, batch_size=self.hessian_batch_size, shuffle=False))        # Will be used later in the computation of the correlations.
+            model_loss = self._get_loss(name, model, DataLoader(train_set, batch_size=self.hessian_batch_size, shuffle=False), loss_function)
             
-            
-            sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig = self.sharpness_measures(model, theta_0, loss_function, dataset, model_accuracy)
+            sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig = self.sharpness_measures(model, theta_0, loss_function, train_set, model_loss)
             
             parameter_space_results["sharpness_flatness"] = sharpness_flatness
             parameter_space_results["sharpness_init"] = sharpness_init
@@ -54,7 +51,7 @@ class ParameterSpaceMetrics:
             parameter_space_results["sharpness_mag_init"] = sharpness_mag_init
             parameter_space_results["sharpness_mag_orig"] = sharpness_mag_orig
             
-            pac_bayes_flatness, flatness_init, flatness_orig, pac_bayes_mag_flat, flatness_mag_init, flatness_mag_orig = self.flatness_measures(model, theta_0, loss_function, dataset, model_accuracy)
+            pac_bayes_flatness, flatness_init, flatness_orig, pac_bayes_mag_flat, flatness_mag_init, flatness_mag_orig = self.flatness_measures(model, theta_0, loss_function, train_set, model_loss)
 
             parameter_space_results["pac_bayes_flatness"] = pac_bayes_flatness
             parameter_space_results["flatness_init"] = flatness_init
@@ -119,15 +116,13 @@ class ParameterSpaceMetrics:
         density = density / normalization
         return density, grids
 
-    def _get_accuracy(self, name, model: torch.nn.Module,
-                        loader: torch.utils.data.DataLoader) -> float:
+    def _get_accuracy(self, name, model: torch.nn.Module, loader: torch.utils.data.DataLoader) -> float:
         """
         Compute the empirical loss of a given model on a dataset.
         Check if the accuracy was previously calculated and saved. If so, load and return it.
         Otherwise, calculate, save, and return the accuracy.
         """
         model.eval()
-
 
         sett = "training" if len(loader.dataset) == 50000 else "validation"
         seed = name.rsplit('_', 1)[-1]
@@ -160,9 +155,7 @@ class ParameterSpaceMetrics:
         print(f"---found {sett} accuracy")
         return avg_accuracy
 
-    def _estimate_accuracy(self, model: torch.nn.Module,
-                        loader: torch.utils.data.DataLoader,
-                        M: int) -> float:
+    def _estimate_accuracy(self, model: torch.nn.Module, loader: torch.utils.data.DataLoader, n_batch_iter: int) -> float:
         """
         Estimate the accuracy of a given model on a dataset.
         """
@@ -172,7 +165,7 @@ class ParameterSpaceMetrics:
 
         iter_loader = iter(loader)
         with torch.no_grad():
-            for _ in range(M):
+            for _ in range(n_batch_iter):
                 inputs, labels = next(iter_loader)
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
 
@@ -224,10 +217,7 @@ class ParameterSpaceMetrics:
         print(f"---found {sett} loss")
         return avg_loss
 
-    def _estimate_loss(self, model: torch.nn.Module,
-                        loader: torch.utils.data.DataLoader,
-                        loss_function: Callable,
-                        M: int) -> float:
+    def _estimate_loss(self, model: torch.nn.Module, loader: torch.utils.data.DataLoader, loss_function: Callable, n_batch_iter: int) -> float:
         """
         Estimate the empirical loss of a given model on a dataset.
         """
@@ -237,7 +227,7 @@ class ParameterSpaceMetrics:
 
         iter_loader = iter(loader)
         with torch.no_grad():
-            for _ in range(M):
+            for _ in range(n_batch_iter):
                 inputs, labels = next(iter_loader)
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
 
@@ -276,6 +266,7 @@ class ParameterSpaceMetrics:
             
             # Alternative clippling method. This one requires all parameters to be up to date, prior to the evaluation of the condition (hence why it is outside the for loop).
             if not magnitude_aware:
+                # perturbation[i] = param[i] - param_orig[i] (i.e. the added noise)
                 perturbation = {}
                 perturbation_norm = 0
                 for name, param in model.named_parameters():
@@ -284,6 +275,7 @@ class ParameterSpaceMetrics:
                     perturbation_norm += (value**2).sum().item()
                 perturbation_norm = np.sqrt(perturbation_norm)
 
+                # Clip perturbation if ||perturbation||_2 > sigma_new
                 if perturbation_norm > sigma_new:
                     scaling_factor = sigma_new / perturbation_norm
                     for name, param in model.named_parameters():
@@ -291,15 +283,15 @@ class ParameterSpaceMetrics:
                         param.data.copy_(theta[name] + scaled_pertubation)
 
     def sigma_sharpness_bound(self, model: torch.nn.Module,
-                          loss_function: Callable,
-                          loader: torch.utils.data.DataLoader,
-                          magnitude_aware: bool,
-                          binary_search_depth: int, monte_carlo_steps: int, M3: int, grad_asc_steps: int,
-                          sigma_max: float, sigma_min: float,
-                          model_accuracy: float, target_acc_deviation: float,
-                          lr: float = 0.01, epsilon_d: float = 1e-2, epsilon_sigma: float = 5e-3) -> float:
+                            loss_function: Callable,
+                            loader: torch.utils.data.DataLoader,
+                            magnitude_aware: bool,
+                            binary_search_depth: int, monte_carlo_steps: int, n_batch_iter: int, grad_asc_steps: int,
+                            sigma_max: float, sigma_min: float,
+                            model_loss: float, target_loss_deviation: float,
+                            lr: float = 0.01, epsilon_d: float = 1e-2, epsilon_sigma: float = 5e-3) -> float:
         """
-        Estimate the sigma for the sharpness bound.
+        Estimate the sigma (in the paper, they also call it alpha) for the sharpness bound.
         """
         theta = copy.deepcopy(model.state_dict())
 
@@ -322,21 +314,19 @@ class ParameterSpaceMetrics:
                 model.eval()
 
                 # Compute estimation of the model's accuracy.
-                #FIXME: USE ACCURACY OR LOSS?
-                # l_hat = min(l_hat, self._estimate_accuracy(model, loader, M3))
-                l_hat = min(l_hat, self._estimate_loss(model, loader, loss_function, M3))
+                l_hat = min(l_hat, self._estimate_loss(model, loader, loss_function, n_batch_iter))
 
             # Compute estimation of the generalization gap.
-            d_hat = abs(model_accuracy - l_hat)
+            d_hat = abs(model_loss - l_hat)
 
             # Check the stopping condition
-            if abs(d_hat - target_acc_deviation) < epsilon_d or sigma_max - sigma_min < epsilon_sigma:
+            if abs(d_hat - target_loss_deviation) < epsilon_d or sigma_max - sigma_min < epsilon_sigma:
                 # Restore the original state model
                 model.load_state_dict(theta)
                 return sigma_new
 
             # Binary search update
-            if d_hat > target_acc_deviation:
+            if d_hat > target_loss_deviation:
                 sigma_max = sigma_new
             else:
                 sigma_min = sigma_new
@@ -346,15 +336,15 @@ class ParameterSpaceMetrics:
         return sigma_new
 
     def sharpness_measures(self, model: torch.nn.Module,
-                       theta_0: Dict[str, torch.Tensor],
-                       loss_function: Callable,
-                       dataset: torch.utils.data.Dataset,
-                       model_accuracy: float,
-                       delta: float = 0.05,
-                       binary_search_depth: int = 20, monte_carlo_steps: int = 15, M3: int = 10, grad_asc_steps: int = 20,
-                       sigma_max: float = 2.0, sigma_min: float = 1e-5,
-                       target_acc_deviation: float = 0.1,
-                       batch_size: int = 64) -> Tuple[float, float, float, float, float, float]:
+                        theta_0: Dict[str, torch.Tensor],
+                        loss_function: Callable,
+                        dataset: torch.utils.data.Dataset,
+                        model_loss: float,
+                        delta: float = 0.05,
+                        binary_search_depth: int = 20, monte_carlo_steps: int = 15, n_batch_iter: int = 10, grad_asc_steps: int = 20,
+                        sigma_max: float = 2.0, sigma_min: float = 1e-5,
+                        target_acc_deviation: float = 0.1,
+                        batch_size: int = 64) -> Tuple[float, float, float, float, float, float]:
         """
         Compute various sharpness measures for a neural network model.
         """
@@ -362,13 +352,14 @@ class ParameterSpaceMetrics:
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
         # Compute sigma for the sharpness bound (in the paper, they also call it alpha)
-        sigma = self.sigma_sharpness_bound(model, loss_function, loader, False, binary_search_depth, monte_carlo_steps, M3, grad_asc_steps, sigma_max, sigma_min, model_accuracy, target_acc_deviation)
+        sigma = self.sigma_sharpness_bound(model, loss_function, loader, False, binary_search_depth, monte_carlo_steps, n_batch_iter, grad_asc_steps, sigma_max, sigma_min, model_loss, target_acc_deviation)
 
         with torch.no_grad():
             n_params = sum(p.numel() for p in model.parameters())
 
             # 1st Measure: "sharpness-flatness"
             sharpness_flatness = 1/(sigma**2)
+
 
             # 2nd Measure: "sharpness-init"
             theta_square_dist = 0
@@ -377,6 +368,7 @@ class ParameterSpaceMetrics:
                 theta_square_dist += ((param - param_init)**2).sum().item()
 
             sharpness_init = theta_square_dist * np.log(2 * n_params / delta) / (sigma**2) + np.log(m/delta) + 10
+
 
             # 3rd Measure: "sharpness-orig"
             theta_square_norm = sum(p.pow(2.0).sum() for p in model.parameters()).item()
@@ -387,11 +379,12 @@ class ParameterSpaceMetrics:
         # Magnitude-aware Measurements
         ##############################
 
-        sigma_mag = self.sigma_sharpness_bound(model, loss_function, loader, True, binary_search_depth, monte_carlo_steps, M3, grad_asc_steps, delta, sigma_max, sigma_min, model_accuracy, target_acc_deviation)
+        sigma_mag = self.sigma_sharpness_bound(model, loss_function, loader, True, binary_search_depth, monte_carlo_steps, n_batch_iter, grad_asc_steps, delta, sigma_max, sigma_min, model_loss, target_acc_deviation)
 
         with torch.no_grad():
             # 4th Measure: "sharpness-mag-flat"
             sharpness_mag_flat = 1/(sigma_mag**2)
+
 
             # 5th Measure: "sharpness-mag-init"
             epsilon = 1e-3  # Value chosen in the paper.
@@ -419,16 +412,16 @@ class ParameterSpaceMetrics:
         return sharpness_flatness, sharpness_init, sharpness_orig, sharpness_mag_flat, sharpness_mag_init, sharpness_mag_orig
 
     def sigma_flatness_bound(self, model: torch.nn.Module,
-                          loss_function: Callable,
-                          loader: torch.utils.data.DataLoader,
-                          magnitude_aware: bool,
-                          epsilon: float,
-                          binary_search_depth: int, monte_carlo_steps: int, M3: int,
-                          sigma_max: float, sigma_min: float,
-                          model_accuracy: float, target_acc_deviation: float,
-                          epsilon_d: float = 1e-2, epsilon_sigma: float = 5e-3) -> float:
+                            loss_function: Callable,
+                            loader: torch.utils.data.DataLoader,
+                            magnitude_aware: bool,
+                            epsilon: float,
+                            binary_search_depth: int, monte_carlo_steps: int, n_batch_iter: int,
+                            sigma_max: float, sigma_min: float,
+                            model_loss: float, target_loss_deviation: float,
+                            epsilon_d: float = 1e-2, epsilon_sigma: float = 5e-3) -> float:
         """
-        Estimate the sigma for the sharpness bound.
+        Estimate the sigma for the flatness bound.
         """
         model.eval()
         theta = copy.deepcopy(model.state_dict())
@@ -442,34 +435,29 @@ class ParameterSpaceMetrics:
                 theta_new = {}
                 for name, param in theta.items():
                     if magnitude_aware:
-                        # FIXME: WHICH ONE TO USE?
-                        # std = sigma_new * torch.abs(param) + epsilon          #  Alternative way of defining it.
-                        std = torch.sqrt((sigma_new * param)**2 + epsilon**2)   # the way is defined in the paper "Fantastic generalization measures"
-                        # std = sigma_new * (torch.abs(param) + epsilon)          # The way it was defined in the original paper (of sharpness)
+                        std = torch.sqrt((sigma_new * param)**2 + epsilon**2)
                         perturbation = torch.normal(0.0, std).to(self.device)
                     else:
                         perturbation = torch.normal(0.0, sigma_new, param.shape).to(self.device)
                     theta_new[name] = param + perturbation
                 model.load_state_dict(theta_new)
 
-                # Compute model's accuracy.
-                #FIXME: USE ACCURACY OR LOSS?
-                # l_hat += self._estimate_accuracy(model, loader, M3)
-                l_hat += self._estimate_loss(model, loader, loss_function, M3)
+                # Compute model's loss.
+                l_hat += self._estimate_loss(model, loader, loss_function, n_batch_iter)
             
             l_hat /= monte_carlo_steps
 
             # Compute estimation of the generalization gap.
-            d_hat = abs(model_accuracy - l_hat)
+            d_hat = abs(model_loss - l_hat)
 
             # Check the stopping condition
-            if abs(d_hat - target_acc_deviation) < epsilon_d or sigma_max - sigma_min < epsilon_sigma:
+            if abs(d_hat - target_loss_deviation) < epsilon_d or sigma_max - sigma_min < epsilon_sigma:
                 # Restore the original state model
                 model.load_state_dict(theta)
                 return sigma_new
 
             # Binary search update
-            if d_hat > target_acc_deviation:
+            if d_hat > target_loss_deviation:
                 sigma_max = sigma_new
             else:
                 sigma_min = sigma_new
@@ -480,15 +468,15 @@ class ParameterSpaceMetrics:
 
     @torch.no_grad()
     def flatness_measures(self, model: torch.nn.Module,
-                       theta_0: Dict[str, torch.Tensor],
-                       loss_function: Callable,
-                       dataset: torch.utils.data.Dataset,
-                       model_accuracy: float,
-                       delta: float = 0.05,
-                       binary_search_depth: int = 30, monte_carlo_steps: int = 20, M3: int = 20,
-                       sigma_max: float = 2.0, sigma_min: float = 1e-5,
-                       target_acc_deviation: float = 0.1,
-                       batch_size: int = 64) -> Tuple[float, float, float, float, float, float]:
+                        theta_0: Dict[str, torch.Tensor],
+                        loss_function: Callable,
+                        dataset: torch.utils.data.Dataset,
+                        model_loss: float,
+                        delta: float = 0.05,
+                        binary_search_depth: int = 30, monte_carlo_steps: int = 20, n_batch_iter: int = 20,
+                        sigma_max: float = 2.0, sigma_min: float = 1e-5,
+                        target_acc_deviation: float = 0.1,
+                        batch_size: int = 64) -> Tuple[float, float, float, float, float, float]:
         """
         Compute various flatness measures for a neural network model.
         """
@@ -496,12 +484,13 @@ class ParameterSpaceMetrics:
         m = len(dataset)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-        sigma = self.sigma_flatness_bound(model, loss_function, loader, False, epsilon, binary_search_depth, monte_carlo_steps, M3, sigma_max, sigma_min, model_accuracy, target_acc_deviation)
+        sigma = self.sigma_flatness_bound(model, loss_function, loader, False, epsilon, binary_search_depth, monte_carlo_steps, n_batch_iter, sigma_max, sigma_min, model_loss, target_acc_deviation)
 
         n_params = sum(p.numel() for p in model.parameters())   # Number of parameters.
 
         # 1st Measure: "pac-bayes-flatness"
         pac_bayes_flatness = 1/(sigma**2)
+
 
         # 2nd Measure: "flatness-init"
         theta_square_dist = 0
@@ -510,7 +499,7 @@ class ParameterSpaceMetrics:
             theta_square_dist += ((param - param_init)**2).sum().item()
 
         flatness_init = theta_square_dist / (2 * sigma**2) + np.log(m/delta) + 10
-        flatness_init = 1
+
 
         # 3rd Measure: "flatness-orig"
         theta_square_norm = sum(p.pow(2.0).sum() for p in model.parameters()).item()
@@ -521,10 +510,11 @@ class ParameterSpaceMetrics:
         # Magnitude-aware Measurements
         ##############################
 
-        sigma_mag = self.sigma_flatness_bound(model, loss_function, loader, True, epsilon, binary_search_depth, monte_carlo_steps, M3, sigma_max, sigma_min, model_accuracy, target_acc_deviation)
+        sigma_mag = self.sigma_flatness_bound(model, loss_function, loader, True, epsilon, binary_search_depth, monte_carlo_steps, n_batch_iter, sigma_max, sigma_min, model_loss, target_acc_deviation)
 
-        # 4th Measure: "flatness-mag-flat"
+        # 4th Measure: "pac-bayes-mag-flat"
         pac_bayes_mag_flat = 1/(sigma_mag**2)
+
 
         # 5th Measure: "flatness-mag-init"
         d_KL = 0
@@ -542,7 +532,7 @@ class ParameterSpaceMetrics:
         for param in model.parameters():
             numerator = epsilon**2 + (sigma_mag**2 + 1) * theta_square_norm / n_params
             denominator = epsilon**2 + (sigma_mag * param)**2
-            d_KL += (torch.log(numerator/denominator)).sum().item()    # TODO: SEE IF NOT ADDING CAUSE INSTABILITYadd 1e-8 to avoid log(0).
+            d_KL += (torch.log(numerator/denominator)).sum().item()
 
         flatness_mag_orig = d_KL/2 + np.log(m/delta) + 10
 
