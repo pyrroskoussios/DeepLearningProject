@@ -1,12 +1,9 @@
 import torch
 import torchvision
 from torch.utils.data import DataLoader
-
-from scipy.stats import pearsonr
-from scipy.stats import kendalltau
+from scipy.stats import pearsonr, kendalltau, spearmanr
 import numpy as np
 from collections import defaultdict
-import csv
 
 
 class CorrelationSpaceMetrics:
@@ -19,13 +16,17 @@ class CorrelationSpaceMetrics:
 		
 	def calculate_all(self, all_results):
 		accuracies, sorted_results = self.sort_filter_results(all_results)
-		correlation_space_results = dict()
+		correlation_space_results = {"parent_1": {}, "parent_2": {}, "naive_fused": {}, "geometric_fused":{}}
+		
 		if self.measure:
-			for model_name, _, metric_name, metric_values in sorted_results:
-				correlation_space_results[str("kendall_" + metric_name)] = self.kendall_rank_correlation(metric_values, accuracies[model_name])
-				correlation_space_results[str("pearson_" + metric_name)] = self.pearson_correlation(metric_values, accuracies[model_name])
+			for model_name, metric_type, metric_name, metric_values in sorted_results:
 			
-				all_results[model_name]["correlation_space"] = correlation_space_results
+				correlation_space_results[model_name][str("kendall_" + metric_name)] = self.kendall_rank_correlation(metric_values, accuracies[model_name])
+				correlation_space_results[model_name][str("pearson_" + metric_name)] = self.pearson_correlation(metric_values, accuracies[model_name])
+				correlation_space_results[model_name][str("spearman_" + metric_name)] = self.spearman_correlation(metric_values, accuracies[model_name])
+
+			for model_name in ["parent_1", "parent_2", "naive_fused", "geometric_fused"]:
+				all_results[model_name]["correlation_space"] = correlation_space_results[model_name]
 			
 		return all_results
 
@@ -34,6 +35,9 @@ class CorrelationSpaceMetrics:
 
 	def pearson_correlation(self, metric_values, accuracy):
 		return pearsonr(metric_values, accuracy)[0]
+
+	def spearman_correlation(self, metric_values, accuracy):
+		return spearmanr(metric_values, accuracy)[0]
 
 	def sort_filter_results(self, results):
 		grouped_metrics = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -62,7 +66,16 @@ class CorrelationSpaceMetrics:
 
 
 if __name__ == "__main__":  # ignore, used this for testing
+	config = {"colab":False}
+	results = load_from_csv("results_vgg11_cifar10", config, root = "/Users/benjaminjaeger/Downloads/")
+	del results["geometric_fused"]
+	del results["naive_fused"]
+	del results["parent_1"]
+	del results["parent_2"]
+	print(json.dumps(results, indent=4))
+
 	cl = CorrelationSpaceMetrics(None)
+	"""
 	results = defaultdict(dict)
 	results["fuse_seed1"]["input_space"] = {"hessian": 4, "gaussian": 1}
 	results["fuse_seed1"]["param_space"] = {"integral": 2, "derivative": 8}
@@ -80,13 +93,13 @@ if __name__ == "__main__":  # ignore, used this for testing
 	results["parent_one_seed1"]["prediction_space"] = {"accuracy": 87}
 	results["fuse_seed1"]["prediction_space"] = {"accuracy": 77}
 	results["fuse_seed2"]["prediction_space"] = {"accuracy": 78}
-
-	print(results)
+	"""
+	#print(results)
 	print("-----------------")
 	#cl.sort_results(results)
 	results = cl.calculate_all(results)
 	print("*-----------*")
-	print(results)
+	#print(results)
 	print("---------")
 	import json
 	print(json.dumps(results, indent=4))

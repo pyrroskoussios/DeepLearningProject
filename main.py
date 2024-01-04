@@ -1,13 +1,13 @@
 import json
 from collections import defaultdict
 
+
 from config.arguments import Config
-from matplotlib import pyplot as plt
 from metrics.input_space import InputSpaceMetrics
 from metrics.parameter_space import ParameterSpaceMetrics
 from metrics.prediction_space import PredictionSpaceMetrics
 from metrics.correlation_space import CorrelationSpaceMetrics
-from utils.utils import write_to_csv
+from utils.utils import *
 from utils.datasets import DatasetLoader
 from utils.models import ModelLoader
 
@@ -34,17 +34,19 @@ def main(config):
             results[name]["parameter_space"] = parameter_space_metrics.calculate_all(name, model, initial_weights[name], train_set, test_set)
         for model, name in models:
             results[name]["prediction_space"] = prediction_space_metrics.calculate_all(name, model, train_set, test_set)
+        print(f"*-finished measurements of seed {seed}-*")
     results = correlation_space_metrics.calculate_all(results)
     return results
 
-def display_dict(dictionary, save_file_path):
+def display_dict(dictionary, config):
     print(json.dumps(dictionary, indent=4))
-    if save_file_path:
-        write_to_csv(dictionary, save_file_path)
+    if config.save_file_path:
+        write_to_csv(dictionary, config)
 
 if __name__ == "__main__":
     
     config = Config()
     results = main(config)
-    display_dict(results, config.save_file_path)
+    display_dict(results, config)
+
 

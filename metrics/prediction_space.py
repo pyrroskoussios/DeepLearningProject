@@ -10,7 +10,8 @@ class PredictionSpaceMetrics:
 		self.mode = config.accuracy_metric
 		self.measure = config.pred_space
 		self.experiment_name = config.experiment_name
-		
+		self.root = "/content/drive/MyDrive/DeepLearningProject" if config.colab else os.getcwd()
+
 	def calculate_all(self, name, model, train_set, test_set):
 		model.to(self.device)
 
@@ -32,7 +33,7 @@ class PredictionSpaceMetrics:
 	def run_epoch(self, name, model, loader):
 		sett = "training" if len(loader.dataset) == 50000 else "validation"
 		seed = name.rsplit('_', 1)[-1]
-		path = os.path.join(os.getcwd(), "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
+		path = os.path.join(self.root, "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
 		filename = os.path.join(path, f"{name}_{sett}_accuracy.pt")
 		if os.path.exists(filename):
 			return torch.load(filename)

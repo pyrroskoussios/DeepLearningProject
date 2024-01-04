@@ -1,10 +1,8 @@
 import os
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pathlib import Path
-
 
 class VGG(nn.Module):
     def __init__(self, vgg_name, num_classes, batch_norm=True, bias=True, relu_inplace=True):
@@ -163,10 +161,10 @@ class ModelLoader:
         self.experiment_name = config.experiment_name
         self.model_type = config.model_type
         self.dataset_name = config.dataset_name
+        self.root = "/content/drive/MyDrive/DeepLearningProject" if config.colab else os.getcwd()
 
     def load_models(self, prefix):
-        
-        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name, str(self.experiment_name + f"_seed{prefix}"))
+        experiment_path = os.path.join(self.root, "experiments", self.experiment_name, str(self.experiment_name + f"_seed{prefix}"))
 
         parent_one = (self._load_individual_model(os.path.join(experiment_path, "parent_1.pth")), f"parent_1_seed{prefix}")
         parent_two = (self._load_individual_model(os.path.join(experiment_path, "parent_2.pth")), f"parent_2_seed{prefix}")
@@ -180,7 +178,7 @@ class ModelLoader:
         """
         Load initial weights of the models. These will be used during the computation of the sharpness metrics.
         """
-        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name, str(self.experiment_name + f"_seed{prefix}"))
+        experiment_path = os.path.join(self.root, "experiments", self.experiment_name, str(self.experiment_name + f"_seed{prefix}"))
         initial_weights = {}
 
         # Load initial weights of the parents
@@ -242,12 +240,6 @@ class ModelLoader:
             exit()
 
         return model
-
-
-
-
-
-
 
 
 
