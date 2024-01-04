@@ -1,7 +1,6 @@
 import torch
 import torchvision
 from torch.utils.data import DataLoader
-
 from scipy.stats import pearsonr, kendalltau, spearmanr
 import numpy as np
 from collections import defaultdict
@@ -18,6 +17,7 @@ class CorrelationSpaceMetrics:
 	def calculate_all(self, all_results):
 		accuracies, sorted_results = self.sort_filter_results(all_results)
 		correlation_space_results = {"parent_1": {}, "parent_2": {}, "naive_fused": {}, "geometric_fused":{}}
+		
 		if self.measure:
 			for model_name, metric_type, metric_name, metric_values in sorted_results:
 			
