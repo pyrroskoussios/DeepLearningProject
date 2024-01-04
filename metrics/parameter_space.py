@@ -18,6 +18,9 @@ class ParameterSpaceMetrics:
         self.measure = config.param_space
         self.experiment_name = config.experiment_name
 
+        # Params from PAC-Bayes/Sharpness measures
+        self.delta = 0.05
+        self.epsilon = 1e-3
 
     def calculate_all(self, name, model, theta_0, train_set, test_set):
         model.to(self.device)
@@ -257,7 +260,7 @@ class ParameterSpaceMetrics:
                     # Clip parameter if |param[i]| > original_param[i] + sigma_new * (|original_param[i]| + 1)
                     for name, param in model.named_parameters():
                         original_param = theta[name]
-                        max_perturb = (torch.abs(original_param) + 1) * sigma_new
+                        max_perturb = (torch.abs(original_param) + self.epsilon) * sigma_new
                         lower_bound = original_param - max_perturb
                         upper_bound = original_param + max_perturb
                         clipped_param = torch.max(torch.min(param, upper_bound), lower_bound)
@@ -340,10 +343,8 @@ class ParameterSpaceMetrics:
                         loss_function: Callable,
                         dataset: torch.utils.data.Dataset,
                         model_loss: float,
-                        delta: float = 0.05,
                         binary_search_depth: int = 20, monte_carlo_steps: int = 15, n_batch_iter: int = 10, grad_asc_steps: int = 20,
-                        sigma_max: float = 2.0, sigma_min: float = 1e-5,
-                        target_acc_deviation: float = 0.1,
+                        target_loss_deviation: float = 0.1,
                         batch_size: int = 64) -> Tuple[float, float, float, float, float, float]:
         """
         Compute various sharpness measures for a neural network model.
@@ -352,7 +353,7 @@ class ParameterSpaceMetrics:
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
         # Compute sigma for the sharpness bound (in the paper, they also call it alpha)
-        sigma = self.sigma_sharpness_bound(model, loss_function, loader, False, binary_search_depth, monte_carlo_steps, n_batch_iter, grad_asc_steps, sigma_max, sigma_min, model_loss, target_acc_deviation)
+        sigma = self.sigma_sharpness_bound(model, loss_function, loader, False, binary_search_depth, monte_carlo_steps, n_batch_iter, grad_asc_steps, sigma_max=7.0, sigma_min=0.0, model_loss=model_loss, target_loss_deviation=target_loss_deviation)
 
         with torch.no_grad():
             n_params = sum(p.numel() for p in model.parameters())
@@ -367,19 +368,19 @@ class ParameterSpaceMetrics:
                 param_init = theta_0[name]
                 theta_square_dist += ((param - param_init)**2).sum().item()
 
-            sharpness_init = theta_square_dist * np.log(2 * n_params / delta) / (sigma**2) + np.log(m/delta) + 10
+            sharpness_init = theta_square_dist * np.log(2 * n_params / self.delta) / (sigma**2) + np.log(m/self.delta) + 10
 
 
             # 3rd Measure: "sharpness-orig"
             theta_square_norm = sum(p.pow(2.0).sum() for p in model.parameters()).item()
 
-            sharpness_orig = theta_square_norm * np.log(2 * n_params / delta) / (sigma**2) + np.log(m/delta) + 10
+            sharpness_orig = theta_square_norm * np.log(2 * n_params / self.delta) / (sigma**2) + np.log(m/self.delta) + 10
         
         ##############################
         # Magnitude-aware Measurements
         ##############################
 
-        sigma_mag = self.sigma_sharpness_bound(model, loss_function, loader, True, binary_search_depth, monte_carlo_steps, n_batch_iter, grad_asc_steps, delta, sigma_max, sigma_min, model_loss, target_acc_deviation)
+        sigma_mag = self.sigma_sharpness_bound(model, loss_function, loader, True, binary_search_depth, monte_carlo_steps, n_batch_iter, grad_asc_steps, sigma_max=2.0, sigma_min=0.0, model_loss=model_loss, target_loss_deviation=target_loss_deviation)
 
         with torch.no_grad():
             # 4th Measure: "sharpness-mag-flat"
@@ -387,25 +388,24 @@ class ParameterSpaceMetrics:
 
 
             # 5th Measure: "sharpness-mag-init"
-            epsilon = 1e-3  # Value chosen in the paper.
             d_KL = 0
             for name, param in model.named_parameters():
                 param_init = theta_0[name]
-                numerator = epsilon**2 + (sigma_mag**2 + 4*np.log(2*n_params / delta)) * theta_square_dist / n_params
-                denominator = epsilon**2 + (sigma_mag * (param - param_init))**2
+                numerator = self.epsilon**2 + (sigma_mag**2 + 4*np.log(2*n_params / self.delta)) * theta_square_dist / n_params
+                denominator = self.epsilon**2 + (sigma_mag * (param - param_init))**2
                 d_KL += (torch.log(numerator/denominator)).sum().item()
 
-            sharpness_mag_init = d_KL/2 + np.log(m/delta) + 10
+            sharpness_mag_init = d_KL/2 + np.log(m/self.delta) + 10
 
 
             # 6th Measure: "sharpness-mag-orig"
             tmp = 0
             for param in model.parameters():
-                numerator = epsilon**2 + (sigma_mag**2 + 4*np.log(2*n_params / delta)) * theta_square_norm / n_params
-                denominator = epsilon**2 + (sigma_mag * param)**2
+                numerator = self.epsilon**2 + (sigma_mag**2 + 4*np.log(2*n_params / self.delta)) * theta_square_norm / n_params
+                denominator = self.epsilon**2 + (sigma_mag * param)**2
                 tmp += (torch.log(numerator/denominator)).sum().item()
 
-            sharpness_mag_orig = tmp/2 + np.log(m/delta) + 10
+            sharpness_mag_orig = tmp/2 + np.log(m/self.delta) + 10
 
         print("---found sharpness metrics")
 
@@ -415,11 +415,10 @@ class ParameterSpaceMetrics:
                             loss_function: Callable,
                             loader: torch.utils.data.DataLoader,
                             magnitude_aware: bool,
-                            epsilon: float,
                             binary_search_depth: int, monte_carlo_steps: int, n_batch_iter: int,
                             sigma_max: float, sigma_min: float,
                             model_loss: float, target_loss_deviation: float,
-                            epsilon_d: float = 1e-2, epsilon_sigma: float = 5e-3) -> float:
+                            epsilon_d: float = 5e-3, epsilon_sigma: float = 1e-4) -> float:
         """
         Estimate the sigma for the flatness bound.
         """
@@ -435,7 +434,7 @@ class ParameterSpaceMetrics:
                 theta_new = {}
                 for name, param in theta.items():
                     if magnitude_aware:
-                        std = torch.sqrt((sigma_new * param)**2 + epsilon**2)
+                        std = torch.sqrt((sigma_new * param)**2 + self.epsilon**2)
                         perturbation = torch.normal(0.0, std).to(self.device)
                     else:
                         perturbation = torch.normal(0.0, sigma_new, param.shape).to(self.device)
@@ -472,19 +471,16 @@ class ParameterSpaceMetrics:
                         loss_function: Callable,
                         dataset: torch.utils.data.Dataset,
                         model_loss: float,
-                        delta: float = 0.05,
                         binary_search_depth: int = 30, monte_carlo_steps: int = 20, n_batch_iter: int = 20,
-                        sigma_max: float = 2.0, sigma_min: float = 1e-5,
-                        target_acc_deviation: float = 0.1,
+                        target_loss_deviation: float = 0.1,
                         batch_size: int = 64) -> Tuple[float, float, float, float, float, float]:
         """
         Compute various flatness measures for a neural network model.
         """
-        epsilon = 1e-3
         m = len(dataset)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-        sigma = self.sigma_flatness_bound(model, loss_function, loader, False, epsilon, binary_search_depth, monte_carlo_steps, n_batch_iter, sigma_max, sigma_min, model_loss, target_acc_deviation)
+        sigma = self.sigma_flatness_bound(model, loss_function, loader, False, binary_search_depth, monte_carlo_steps, n_batch_iter, sigma_max=0.2, sigma_min=0.0, model_loss=model_loss, target_loss_deviation=target_loss_deviation)
 
         n_params = sum(p.numel() for p in model.parameters())   # Number of parameters.
 
@@ -498,19 +494,19 @@ class ParameterSpaceMetrics:
             param_init = theta_0[name]
             theta_square_dist += ((param - param_init)**2).sum().item()
 
-        flatness_init = theta_square_dist / (2 * sigma**2) + np.log(m/delta) + 10
+        flatness_init = theta_square_dist / (2 * sigma**2) + np.log(m/self.delta) + 10
 
 
         # 3rd Measure: "flatness-orig"
         theta_square_norm = sum(p.pow(2.0).sum() for p in model.parameters()).item()
 
-        flatness_orig = theta_square_norm / (2 * sigma**2) + np.log(m/delta) + 10
+        flatness_orig = theta_square_norm / (2 * sigma**2) + np.log(m/self.delta) + 10
     
         ##############################
         # Magnitude-aware Measurements
         ##############################
 
-        sigma_mag = self.sigma_flatness_bound(model, loss_function, loader, True, epsilon, binary_search_depth, monte_carlo_steps, n_batch_iter, sigma_max, sigma_min, model_loss, target_acc_deviation)
+        sigma_mag = self.sigma_flatness_bound(model, loss_function, loader, True, binary_search_depth, monte_carlo_steps, n_batch_iter, sigma_max=4.0, sigma_min=0.5, model_loss=model_loss, target_loss_deviation=target_loss_deviation)
 
         # 4th Measure: "pac-bayes-mag-flat"
         pac_bayes_mag_flat = 1/(sigma_mag**2)
@@ -520,21 +516,21 @@ class ParameterSpaceMetrics:
         d_KL = 0
         for name, param in model.named_parameters():
             param_init = theta_0[name]
-            numerator = epsilon**2 + (sigma_mag**2 + 1) * theta_square_dist / n_params
-            denominator = epsilon**2 + (sigma_mag * (param - param_init))**2
+            numerator = self.epsilon**2 + (sigma_mag**2 + 1) * theta_square_dist / n_params
+            denominator = self.epsilon**2 + (sigma_mag * (param - param_init))**2
             d_KL += (torch.log(numerator/denominator)).sum().item()
 
-        flatness_mag_init = d_KL/2 + np.log(m/delta) + 10
+        flatness_mag_init = d_KL/2 + np.log(m/self.delta) + 10
 
 
         # 6th Measure: "flatness-mag-orig"
         d_KL = 0
         for param in model.parameters():
-            numerator = epsilon**2 + (sigma_mag**2 + 1) * theta_square_norm / n_params
-            denominator = epsilon**2 + (sigma_mag * param)**2
+            numerator = self.epsilon**2 + (sigma_mag**2 + 1) * theta_square_norm / n_params
+            denominator = self.epsilon**2 + (sigma_mag * param)**2
             d_KL += (torch.log(numerator/denominator)).sum().item()
 
-        flatness_mag_orig = d_KL/2 + np.log(m/delta) + 10
+        flatness_mag_orig = d_KL/2 + np.log(m/self.delta) + 10
 
         print("---found flatness metrics")
         return pac_bayes_flatness, flatness_init, flatness_orig, pac_bayes_mag_flat, flatness_mag_init, flatness_mag_orig
