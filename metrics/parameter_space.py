@@ -18,6 +18,7 @@ class ParameterSpaceMetrics:
         self.hessian_batch_size = config.batch_size
         self.measure = config.param_space
         self.experiment_name = config.experiment_name
+        self.root = "/content/drive/MyDrive/DeepLearningProject" if config.colab else os.getcwd()
 
 
     def calculate_all(self, name, model, theta_0, train_set, test_set):
@@ -131,7 +132,7 @@ class ParameterSpaceMetrics:
 
         sett = "training" if len(loader.dataset) == 50000 else "validation"
         seed = name.rsplit('_', 1)[-1]
-        path = os.path.join(os.getcwd(), "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
+        path = os.path.join(self.root, "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
         filename = os.path.join(path, f"{name}_{sett}_accuracy.pt")
        
         # Check if the accuracy has already been computed and saved
@@ -194,7 +195,7 @@ class ParameterSpaceMetrics:
         
         sett = "training" if len(loader.dataset) == 50000 else "validation"
         seed = name.rsplit('_', 1)[-1]
-        path = os.path.join(os.getcwd(), "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
+        path = os.path.join(self.root, "experiments", self.experiment_name,  str(self.experiment_name + "_" + seed), "statistics")
         filename = os.path.join(path, f"{name}_{sett}_loss.pt")
 
         # Check if the loss has already been computed and saved

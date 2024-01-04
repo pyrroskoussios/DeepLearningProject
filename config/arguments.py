@@ -18,6 +18,7 @@ class Config:
         self.param_space = cli_args.param_space
         self.pred_space = cli_args.pred_space
         self.correl_space = cli_args.correl_space
+        self.colab = cli_args.colab
         self._check_validity()
 
     def _parse_args(self):
@@ -29,15 +30,16 @@ class Config:
         parser.add_argument("--seeds", required=True, type=int)
         parser.add_argument("--batch_size", type=int, default=100)
         parser.add_argument("--save_file_path", type=str, default="results")
-        parser.add_argument("--input_space", type=bool, default=True)
-        parser.add_argument("--param_space", type=bool, default=True)
-        parser.add_argument("--pred_space", type=bool, default=True)
+        parser.add_argument("--input_space", type=str, default="True")
+        parser.add_argument("--param_space", type=str, default="True")
+        parser.add_argument("--pred_space", type=str, default="True")
         parser.add_argument("--accuracy_metric", type=str, default="accuracy")
-        parser.add_argument("--correl_space", type=bool, default=True)
+        parser.add_argument("--correl_space", type=str, default="True")
+        parser.add_argument("--colab", type=str, default="False")
         cli_args = parser.parse_args()
 
         bool_dict = {"True": True, "False": False}
-        bool_args = []
+        bool_args = ["input_space", "param_space", "pred_space", "correl_space", "colab"]
 
         for bool_arg in bool_args:
             if getattr(cli_args, bool_arg):
@@ -46,7 +48,8 @@ class Config:
         return cli_args 
 
     def _check_validity(self):
-        experiment_path = os.path.join(os.getcwd(), "experiments", self.experiment_name)
+        root = "/content/drive/MyDrive/DeepLearningProject" if self.colab else os.getcwd()
+        experiment_path = os.path.join(root, "experiments", self.experiment_name)
         
         assert self.device in ["cpu", "cuda", "mps"], "Device must be 'cpu', 'cuda' or 'mps'"
         assert os.path.exists(experiment_path), "Experiment folder does not exist"
