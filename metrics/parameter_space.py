@@ -317,7 +317,7 @@ class ParameterSpaceMetrics:
                     self._grad_ascent_step(iter_loader, model, theta, sigma_new, loss_function, lr, magnitude_aware)
                 model.eval()
 
-                # Compute estimation of the model's accuracy.
+                # Compute estimation of the perturbed model's loss.
                 l_hat = min(l_hat, self._estimate_loss(model, loader, loss_function, n_batch_iter))
 
             # Compute estimation of the generalization gap.
@@ -442,9 +442,10 @@ class ParameterSpaceMetrics:
                     theta_new[name] = param + perturbation
                 model.load_state_dict(theta_new)
 
-                # Compute model's loss.
+                # Compute estimatation of the perturbed model's loss.
                 l_hat += self._estimate_loss(model, loader, loss_function, n_batch_iter)
             
+            # Compute estimation of the expected perturbed model's loss.
             l_hat /= monte_carlo_steps
 
             # Compute estimation of the generalization gap.
