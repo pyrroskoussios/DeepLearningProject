@@ -236,7 +236,7 @@ class ModelLoader:
         except RuntimeError as original_error:
             print(original_error)
             print(
-                "\n\n\nOopsie woopsie youre a little retarded and tried to load saved weights into a network of different shape hihi! Check the original error above for leads! (most likely a difference in batchnorm or bias)\n\n\n")
+                "\n\n\nOopsie woopsie youre a little dumb and tried to load saved weights into a network of different shape hihi! Check the original error above for leads! (most likely a difference in batchnorm or bias)\n\n\n")
             exit()
 
         return model
