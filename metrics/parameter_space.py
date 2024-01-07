@@ -86,13 +86,15 @@ class ParameterSpaceMetrics:
     
     def hessian_eigenvalue_spectrum_density(self, model, test_set, batch_size):
         hessian_module = self._create_hessian_module(model, test_set, batch_size)
-        eigenvalues, weights = hessian_module.density()
+        #eigenvalues, weights = hessian_module.density()
+        eigenvalues, weights = self._generate_density_eigenvalues_weights(hessian_module)
         density, grids = self._generate_density(eigenvalues, weights)
         fig, ax = plt.subplots()
         ax.semilogy(grids, density + 1.0e-7)
         ax.set_ylabel('Density (Log Scale)', fontsize=14, labelpad=10)
         ax.set_xlabel('Eigenvalue', fontsize=14, labelpad=10)
         ax.axis([np.min(eigenvalues) - 1, np.max(eigenvalues) + 1, None, None])
+        plt.show()
         return fig
 
     def _create_hessian_module(self, model, test_set, batch_size):
@@ -100,6 +102,72 @@ class ParameterSpaceMetrics:
         criterion = torch.nn.CrossEntropyLoss()
         hessian_module = pyhessian.hessian(model, criterion, data=next(iter(test_loader)), cuda=(self.device == "cuda"))
         return hessian_module
+
+    def _generate_density_eigenvalues_weights(self, hessian_module, iter=100, n_v=1):
+        device = self.device
+        eigen_list_full = []
+        weight_list_full = []
+
+        for _ in range(n_v):
+            v = [
+                torch.randint_like(p, high=2, device=device)
+                for p in hessian_module.params
+            ]
+            for v_i in v:
+                v_i[v_i == 0] = -1
+            v = pyhessian.utils.normalization(v)
+
+            v_list = [v]
+            w_list = []
+            alpha_list = []
+            beta_list = []
+            for i in range(iter):
+                hessian_module.model.zero_grad()
+                w_prime = [torch.zeros(p.size()).to(device) for p in hessian_module.params]
+                if i == 0:
+                    if hessian_module.full_dataset:
+                        _, w_prime = hessian_module.dataloader_hv_product(v)
+                    else:
+                        w_prime = pyhessian.utils.hessian_vector_product(
+                            hessian_module.gradsH, hessian_module.params, v)
+                    alpha = pyhessian.utils.group_product(w_prime, v)
+                    alpha_list.append(alpha.cpu().item())
+                    w = pyhessian.utils.group_add(w_prime, v, alpha=-alpha)
+                    w_list.append(w)
+                else:
+                    beta = torch.sqrt(pyhessian.utils.group_product(w, w))
+                    beta_list.append(beta.cpu().item())
+                    if beta_list[-1] != 0.:
+                        v = pyhessian.utils.orthnormal(w, v_list)
+                        v_list.append(v)
+                    else:
+                        w = [torch.randn(p.size()).to(device) for p in hessian_module.params]
+                        v = pyhessian.utils.orthnormal(w, v_list)
+                        v_list.append(v)
+                    if hessian_module.full_dataset:
+                        _, w_prime = hessian_module.dataloader_hv_product(v)
+                    else:
+                        w_prime = pyhessian.utils.hessian_vector_product(
+                            hessian_module.gradsH, hessian_module.params, v)
+                    alpha = pyhessian.utils.group_product(w_prime, v)
+                    alpha_list.append(alpha.cpu().item())
+                    w_tmp = pyhessian.utils.group_add(w_prime, v, alpha=-alpha)
+                    w = pyhessian.utils.group_add(w_tmp, v_list[-2], alpha=-beta)
+
+            T = torch.zeros(iter, iter).to(device)
+            for i in range(len(alpha_list)):
+                T[i, i] = alpha_list[i]
+                if i < len(alpha_list) - 1:
+                    T[i + 1, i] = beta_list[i]
+                    T[i, i + 1] = beta_list[i]
+            a_, b_ = torch.linalg.eig(T)
+
+            eigen_list = a_.real
+            weight_list = b_.real[0,:]**2
+            eigen_list_full.append(list(eigen_list.cpu().numpy()))
+            weight_list_full.append(list(weight_list.cpu().numpy()))
+
+        return eigen_list_full, weight_list_full
 
     def _generate_density(self, eigenvalues, weights, num_bins=10000, sigma_squared=1e-5, overhead=0.01):
         eigenvalues = np.array(eigenvalues)
