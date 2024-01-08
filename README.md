@@ -1,5 +1,3 @@
-# Welcome to StackEdit!
-
 # Deep Learning Project: Understanding OT Fusion
 
 This is the repository for the corresponding report handed in by Benjamin Jäger, Pyrros Koussios, and Santiago Gallego Restrepo, titled "Understanding Model Fusion". 
@@ -64,10 +62,10 @@ You can either download the weights for the experiments we conducted or create n
 The weights used for the report can be found at [link to weights]. Following the Training and Fusion section is not necessary when downloading the weights.
 
 ## Training
-Navigate to the `training` directory. Open the `training_main.py` file and adjust the model, data and hyperparameters. Run in order to create a `checkpoints` folder, which holds the epoch checkpoints, the initial, and the best validation state dict of the current run.
+Navigate to the `/training` directory. Open the `training_main.py` file and adjust the model, data and hyperparameters. Run in order to create a `/checkpoints` folder, which holds the epoch checkpoints, the initial, and the best validation state dict of the current run.
 
 ## Fusion
-After having obtained at least two model state dicts of the same configuration (which is required in order for fusion to work), navigate to the `fusion` directory. Open the `fusion_main.py` file and adjust the parameters and paths to said models. Run in order to create a `fusion` folder, which holds the state dicts of the naive and the geometric fusion.
+After having obtained at least two model state dicts of the same configuration (which is required in order for fusion to work), navigate to the `/fusion` directory. Open the `fusion_main.py` file and adjust the parameters and paths to said models. Run in order to create a `/fused` folder, which holds the state dicts of the naive and the geometric fusion.
 
 ## Conducting the measurements
 Ensure at least having one seed of model data (as depicted above). 
@@ -81,17 +79,17 @@ python main.py --device <device> --experiment_name <experiment_name> --seeds <se
 
 - `device`: Specify the device to run the analysis on (e.g. 'cuda').
 - `experiment_name`: Specify which experiment (i.e. model architecture and dataset) to analyse.
-- `seeds`: Specify the number of seeds to use for the analysis.
 - `model_type`: Specify the type of model to use (e.g. 'RESNET18_NOBIAS_NOBN').
 - `dataset_name`: Define the name of the dataset to be used (e.g. 'CIFAR100').
+- `seeds`: Specify the number of seeds to use for the analysis.
 
 
 #### Optional Arguments
 - `batch_size`: Define the batch size for training and evaluation. Default is 100.
 - `accuracy_metric`: Specify the accuracy metric to be used (between 'accuracy' and 'generalisation_gap'). Default is 'accuracy'.
-- `save_file_path`: Path where the results will be saved. By default, they are saved in the `results/` folder.
+- `save_file_path`: Path and file name where the results will be saved. By default, they are saved in a `./results.csv` file.
 - `input_space`: Enable input space analysis. Default is 'True'.
-- `param_space`: Enable parameter space analysis. The default value is 'True'.
+- `param_space`: Enable parameter space analysis. Default is 'True'.
 - `pred_space`: Enable prediction space analysis. Default is 'True'.
 - `correl_space`: Enable correlation space analysis. Default is 'True'.
 
@@ -99,7 +97,7 @@ python main.py --device <device> --experiment_name <experiment_name> --seeds <se
 #### Example Command
 
 ```bash
-python main.py --device cuda --experiment_name resnet18_cifar10 --seeds 3 --model_type RESNET18_NOBIAS_NOBN --dataset_name CIFAR10 --param_space False
+python main.py --device cuda --experiment_name resnet18_cifar10 --model_type RESNET18_NOBIAS_NOBN --dataset_name CIFAR10 --seeds 3 --save_file_path results_test --param_space False
 ```
 
-In this example, we are only using three seeds and we are not computing the parameter space metrics.
+In this example, we are only using three seeds and we are not computing the parameter space metrics. The resulting measurements are saved in `./results_test.csv`.
