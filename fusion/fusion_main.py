@@ -1,3 +1,6 @@
+import os
+import torch
+
 from fusion_utils import Argument, _load_individual_model, naive_ensembling, geometric_ensembling, save_models
 
 
@@ -6,7 +9,7 @@ def initialisation():
 		os.mkdir(os.path.join(os.getcwd(), 'fused'))
 	fusion_path = os.path.join(os.getcwd(), 'fused')
 	print("GPU available: ", torch.cuda.is_available())
-	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+	device = 'cuda' if torch.cuda.is_available() else 'cpu'
 	torch.backends.cuda.matmul.allow_tf32 = True
 	torch.set_default_dtype(torch.float32)
 

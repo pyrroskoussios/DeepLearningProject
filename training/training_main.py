@@ -93,7 +93,7 @@ if __name__ == "__main__":
 	dataset_type = 'CIFAR10'
 	class_num = 100 if dataset_type == 'CIFAR100' else 10
 	batch_size = 64
-	epochs = 1
+	epochs = 30
 	lr = 0.05
 
 	if model_type == "VGG":
