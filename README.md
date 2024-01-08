@@ -59,7 +59,7 @@ You can either download the weights for the experiments we conducted or create n
         │   ...
     │   ...
 ```
-The weights used for the report can be found at [link to weights]. Following the Training and Fusion section is not necessary when downloading the weights.
+The weights used for the report can be found [here](https://drive.google.com/drive/folders/1ZtymNF6PcpC08pW-W8wIj-Wg057kIObw?usp=sharing). Following the Training and Fusion section is not necessary for reproduction when downloading the weights.
 
 ## Training
 Navigate to the `/training` directory. Open the `training_main.py` file and adjust the model, data and hyperparameters. Run in order to create a `/checkpoints` folder, which holds the epoch checkpoints, the initial, and the best validation state dict of the current run.
