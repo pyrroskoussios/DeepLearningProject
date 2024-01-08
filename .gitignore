@@ -1,5 +1,6 @@
 .DS_Store
 CIFAR10/
+CIFAR100/
 experiments/
 
 # Byte-compiled / optimized / DLL files
