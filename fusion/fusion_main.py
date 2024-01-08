@@ -2,9 +2,9 @@ from fusion_utils import Argument, _load_individual_model, naive_ensembling, geo
 
 
 def initialisation():
-	if not os.path.exists(os.path.join(os.getcwd(), 'checkpoints')):
-		os.mkdir(os.path.join(os.getcwd(), 'checkpoints'))
-	fusion_path = os.path.join(os.getcwd(), 'fusion')
+	if not os.path.exists(os.path.join(os.getcwd(), 'fused')):
+		os.mkdir(os.path.join(os.getcwd(), 'fused'))
+	fusion_path = os.path.join(os.getcwd(), 'fused')
 	print("GPU available: ", torch.cuda.is_available())
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 	torch.backends.cuda.matmul.allow_tf32 = True

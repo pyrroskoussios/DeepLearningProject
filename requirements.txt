@@ -1,0 +1,8 @@
+torch
+torchvision
+scipy
+numpy
+pandas
+pyhessian
+matplotlib
+POT
